@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,32 @@ func Convert(src, dst, fromFormat, toFormat string) error {
 
 	if err := os.WriteFile(dst, out, 0644); err != nil {
 		return fmt.Errorf("write %s: %w", dst, err)
+	}
+	return nil
+}
+
+// ConvertStream converts from reader to writer (for pipe support).
+func ConvertStream(r io.Reader, w io.Writer, fromFormat, toFormat string) error {
+	if fromFormat == "" || toFormat == "" {
+		return fmt.Errorf("--from and --to required for pipe mode")
+	}
+	if fromFormat == toFormat {
+		return fmt.Errorf("source and target format are the same (%s)", fromFormat)
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("read: %w", err)
+	}
+	var parsed interface{}
+	if err := unmarshal(data, fromFormat, &parsed); err != nil {
+		return fmt.Errorf("parse as %s: %w", fromFormat, err)
+	}
+	out, err := marshal(parsed, toFormat)
+	if err != nil {
+		return fmt.Errorf("encode as %s: %w", toFormat, err)
+	}
+	if _, err := w.Write(out); err != nil {
+		return fmt.Errorf("write: %w", err)
 	}
 	return nil
 }

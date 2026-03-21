@@ -2,12 +2,22 @@
 
 A cross-platform CLI for converting files across formats using FFmpeg, ImageMagick, and Pandoc.
 
+## Quick Start
+
+```sh
+./scripts/setup.sh      # install deps, build, verify (interactive)
+./scripts/setup.sh -y   # same, install engines without prompting
+make setup              # alias for ./scripts/setup.sh
+```
+
 ## Building
 
 ```sh
 make build   # builds the binary at ./bin/flux
 ./bin/flux --help
 ```
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for full dependency list.
 
 ## Usage
 
@@ -27,6 +37,19 @@ flux convert -i sheet.csv -o sheet.json
 flux convert -i config.toml -o config.yaml --from toml --to yaml
 ```
 
+Batch conversion (multiple files or globs):
+
+```sh
+flux convert -i a.jpg b.jpg c.jpg -o png
+flux convert -i *.json -o yaml --force
+```
+
+Pipe / stdin support:
+
+```sh
+cat file.json | flux convert -o - --from json --to yaml > out.yaml
+```
+
 Override the conversion engine (default is auto, which picks by file type):
 
 ```sh
@@ -39,7 +62,9 @@ flux convert -i data.json -o data.csv --engine data
 ## Commands
 
 - `flux convert` – convert files between formats
-- `flux convert -i <input> -o <output> [--engine ffmpeg|imagemagick|pandoc|data|auto] [--from <format>] [--to <format>]`
+- `flux doctor` – check installed engines and versions
+- `flux list-formats` – show supported conversions per engine
+- `flux info <file>` – inspect file metadata
 
 ## Configuration
 

@@ -5,7 +5,17 @@ tasklist.md
 PLAN.md
 PRD.pdf
 /vendor/
+/bin/
 *.exe
 *.log
 *.out
+*.test
+coverage.out
+coverage.html
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+.env.local
