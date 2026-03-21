@@ -9,9 +9,8 @@ import (
 )
 
 type stubRunner struct {
-    lastCmd string
+    lastCmd  string
     lastArgs []string
-    err bool
 }
 
 func (s *stubRunner) CommandContext(ctx context.Context, name string, arg ...string) *exec.Cmd {

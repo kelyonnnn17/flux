@@ -37,7 +37,7 @@ func init() {
 	convertCmd.Flags().StringVar(&toFlag, "to", "", "Output format (csv|json|yaml|toml); required for pipe")
 	convertCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing files without prompting")
 	convertCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress output; exit code only")
-	convertCmd.MarkFlagRequired("output")
+	_ = convertCmd.MarkFlagRequired("output")
 }
 
 func runConvert(c *cobra.Command, args []string) error {
@@ -118,18 +118,16 @@ func convertOne(in, out string, engineFlag string) error {
 	if toFormat == "" {
 		toFormat = data.FormatFromExt(out)
 	}
-	engineName := "converting"
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
-		engineName = "data"
-		sp := spinner.New(engineName + " ...")
+		sp := spinner.New("data ...")
 		sp.Start()
 		defer sp.Stop()
 		return data.Convert(in, out, fromFormat, toFormat)
 	}
-	engineName = "converting"
 	factory := engine.NewFactory(engine.NewDefaultRunner())
 	var eng engine.Engine
 	var err error
+	var engineName string
 	if engineFlag == "auto" {
 		preferred := engine.RouteByFormat(in, out)
 		eng, err = factory.AutoEngine(preferred)
