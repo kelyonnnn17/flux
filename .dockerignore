@@ -1,0 +1,8 @@
+.git
+.github
+bin
+*.md
+.gitignore
+.dockerignore
+coverage.out
+*.test

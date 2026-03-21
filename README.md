@@ -17,6 +17,15 @@ make build   # builds the binary at ./bin/flux
 ./bin/flux --help
 ```
 
+## Docker
+
+Run without installing dependencies:
+
+```sh
+docker build -t flux .
+docker run --rm flux convert -i input.json -o output.yaml
+```
+
 See [REQUIREMENTS.md](REQUIREMENTS.md) for full dependency list.
 
 ## Usage
