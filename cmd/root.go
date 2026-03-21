@@ -4,6 +4,7 @@ import (
     "fmt"
     "os"
     "github.com/spf13/cobra"
+    "github.com/kelyonnnn17/flux/internal/config"
 )
 
 var rootCmd = &cobra.Command{
@@ -21,6 +22,9 @@ func init() {
 }
 
 func Execute() {
+    if _, err := config.Load(); err != nil {
+        fmt.Fprintf(os.Stderr, "warning: config load failed: %v\n", err)
+    }
     if err := rootCmd.Execute(); err != nil {
         fmt.Println(err)
         os.Exit(1)

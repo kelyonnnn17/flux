@@ -1,6 +1,6 @@
 # Flux Universal File Converter
 
-A simple CLI scaffold using Cobra.
+A cross-platform CLI for converting files across formats using FFmpeg, ImageMagick, and Pandoc.
 
 ## Building
 
@@ -9,7 +9,48 @@ make build   # builds the binary at ./bin/flux
 ./bin/flux --help
 ```
 
+## Usage
+
+Convert a file between formats:
+
+```sh
+flux convert -i input.jpg -o output.png
+flux convert -i document.md -o document.pdf
+flux convert -i video.mp4 -o video.mkv
+```
+
+Override the conversion engine (default is auto, which picks by file type):
+
+```sh
+flux convert -i file.pdf -o file.html --engine pandoc
+flux convert -i image.png -o image.jpg --engine imagemagick
+flux convert -i audio.mp3 -o audio.wav --engine ffmpeg
+```
+
 ## Commands
 
-- `flux convert` – placeholder for future conversion logic.
-- `flux --engine` – selects conversion engine (auto, ffmpeg, imagemagick, pandoc).
+- `flux convert` – convert files between formats
+- `flux convert -i <input> -o <output> [--engine ffmpeg|imagemagick|pandoc|auto]`
+
+## Configuration
+
+Optional config at `~/.config/flux/config.yaml`:
+
+```yaml
+log_level: info
+```
+
+## Requirements
+
+At least one of: FFmpeg, ImageMagick, or Pandoc on `$PATH`. Install examples:
+
+```sh
+# macOS
+brew install ffmpeg imagemagick pandoc
+
+# Ubuntu/Debian
+apt install ffmpeg imagemagick pandoc
+
+# Windows
+choco install ffmpeg imagemagick pandoc
+```
