@@ -29,6 +29,8 @@ func (f *EngineFactory) GetEngine(name string) (Engine, error) {
         return &ImageMagickAdapter{Runner: f.runner}, nil
     case "pandoc":
         return &PandocAdapter{Runner: f.runner}, nil
+    case "data":
+        return &DataAdapter{}, nil
     default:
         return nil, errors.New("unknown engine: " + name)
     }
@@ -46,9 +48,14 @@ func (f *EngineFactory) AutoEngine(preferred []string) (Engine, error) {
 
 // RouteByFormat returns the preferred engine order for converting src to dst,
 // based on file extensions. Used when engine is "auto".
-// PRD: Documents -> Pandoc, Images -> ImageMagick, Audio/Video -> FFmpeg.
+// PRD: Documents -> Pandoc, Images -> ImageMagick, Audio/Video -> FFmpeg, Data -> Go.
 func RouteByFormat(src, dst string) []string {
-    ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
+    srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
+    dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+    if isDataExt(srcExt) && isDataExt(dstExt) {
+        return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
+    }
+    ext := srcExt
     switch ext {
     case "pdf", "docx", "odt", "md", "tex", "epub", "html", "rst":
         return []string{"pandoc", "imagemagick", "ffmpeg"}
@@ -56,20 +63,31 @@ func RouteByFormat(src, dst string) []string {
         return []string{"imagemagick", "ffmpeg", "pandoc"}
     case "mp4", "mkv", "avi", "mov", "mp3", "wav", "webm", "m4a", "flac", "ogg":
         return []string{"ffmpeg", "imagemagick", "pandoc"}
+    case "csv", "tsv", "json", "yaml", "toml":
+        return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
     default:
         return []string{"ffmpeg", "imagemagick", "pandoc"}
     }
 }
 
+func isDataExt(ext string) bool {
+    switch ext {
+    case "csv", "tsv", "json", "yaml", "yml", "toml":
+        return true
+    }
+    return false
+}
+
 func binaryExists(name string) bool {
-    // Direct binary check for known engine commands.
+    if name == "data" {
+        return true // data converter is always available
+    }
     switch name {
     case "ffmpeg", "pandoc":
         if _, err := exec.LookPath(name); err == nil {
             return true
         }
     case "imagemagick":
-        // ImageMagick may be "magick" or "convert"
         if _, err := exec.LookPath("magick"); err == nil {
             return true
         }

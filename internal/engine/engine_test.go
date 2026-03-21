@@ -48,8 +48,8 @@ func TestPandocAdapter(t *testing.T) {
 
 func TestRouteByFormat(t *testing.T) {
     tests := []struct {
-        src, dst string
-        wantFirst string
+        src, dst   string
+        wantFirst  string
     }{
         {"doc.pdf", "doc.html", "pandoc"},
         {"slide.md", "slide.pdf", "pandoc"},
@@ -57,6 +57,8 @@ func TestRouteByFormat(t *testing.T) {
         {"img.PNG", "img.webp", "imagemagick"},
         {"video.mp4", "video.mkv", "ffmpeg"},
         {"audio.mp3", "audio.wav", "ffmpeg"},
+        {"data.json", "data.yaml", "data"},
+        {"in.csv", "out.json", "data"},
     }
     for _, tt := range tests {
         got := engine.RouteByFormat(tt.src, tt.dst)
