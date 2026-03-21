@@ -13,4 +13,3 @@ make build   # builds the binary at ./bin/flux
 
 - `flux convert` – placeholder for future conversion logic.
 - `flux --engine` – selects conversion engine (auto, ffmpeg, imagemagick, pandoc).
-# flux

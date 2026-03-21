@@ -1,0 +1,11 @@
+PRD.md
+CLAUDE.md
+progress.md
+tasklist.md
+PLAN.md
+PRD.pdf
+/vendor/
+*.exe
+*.log
+*.out
+.DS_Store
