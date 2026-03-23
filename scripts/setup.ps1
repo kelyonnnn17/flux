@@ -1,0 +1,70 @@
+param(
+    [switch]$Yes
+)
+
+$ErrorActionPreference = "Stop"
+Set-Location (Join-Path $PSScriptRoot "..")
+
+Write-Host "==> Flux setup (Windows)"
+
+function Ensure-Command($Name, $InstallHint) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "$Name not found. $InstallHint"
+    }
+}
+
+Ensure-Command "go" "Install Go: https://go.dev/dl/"
+Write-Host "OK Go: $(go version)"
+
+function Install-Engines {
+    if (Get-Command choco -ErrorAction SilentlyContinue) {
+        Write-Host "==> Installing engines with Chocolatey"
+        choco install -y ffmpeg imagemagick pandoc
+        return
+    }
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "==> Installing engines with winget"
+        winget install --silent --accept-source-agreements --accept-package-agreements ffmpeg
+        winget install --silent --accept-source-agreements --accept-package-agreements ImageMagick.ImageMagick
+        winget install --silent --accept-source-agreements --accept-package-agreements JohnMacFarlane.Pandoc
+        return
+    }
+
+    Write-Host "X No supported package manager found (choco or winget). Install ffmpeg, imagemagick, and pandoc manually."
+}
+
+if ($Yes) {
+    Install-Engines
+} else {
+    $reply = Read-Host "Install FFmpeg, ImageMagick, Pandoc now? [y/N]"
+    if ($reply -match '^[Yy]$') {
+        Install-Engines
+    }
+}
+
+Write-Host "==> Building flux"
+go build -o .\bin\flux.exe main.go
+Write-Host "OK Built .\\bin\\flux.exe"
+
+$installDir = Join-Path $env:USERPROFILE "bin"
+if (-not (Test-Path $installDir)) {
+    New-Item -ItemType Directory -Path $installDir | Out-Null
+}
+Copy-Item .\bin\flux.exe (Join-Path $installDir "flux.exe") -Force
+Write-Host "OK Installed $installDir\\flux.exe"
+
+$currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (-not $currentUserPath) {
+    $currentUserPath = ""
+}
+if ($currentUserPath -notlike "*$installDir*") {
+    $newPath = ($currentUserPath.TrimEnd(';') + ";" + $installDir).Trim(';')
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "OK Added $installDir to User PATH"
+    Write-Host "OK Open a new terminal to use 'flux' directly"
+}
+
+Write-Host "==> Verifying local binary"
+.\bin\flux.exe doctor
+Write-Host "==> Done"

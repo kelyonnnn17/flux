@@ -7,21 +7,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kelyonnnn17/flux/internal/data"
 	"github.com/kelyonnnn17/flux/internal/engine"
 	"github.com/kelyonnnn17/flux/internal/format"
 	"github.com/kelyonnnn17/flux/internal/spinner"
+	"github.com/kelyonnnn17/flux/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
-	inputPaths []string
-	outputPath string
-	fromFlag   string
-	toFlag     string
-	forceFlag  bool
-	quietFlag  bool
+	inputPaths      []string
+	outputPath      string
+	fromFlag        string
+	toFlag          string
+	forceFlag       bool
+	quietFlag       bool
+	formatStyleFlag string
 )
 
 var convertCmd = &cobra.Command{
@@ -39,6 +42,7 @@ func init() {
 	convertCmd.Flags().StringVar(&toFlag, "to", "", "Output format (csv|json|yaml|toml); required for pipe")
 	convertCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing files without prompting")
 	convertCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress output; exit code only")
+	convertCmd.Flags().StringVar(&formatStyleFlag, "format-style", "professional", "Apply formatting preset to documents (professional|technical|none)")
 }
 
 func runConvert(c *cobra.Command, args []string) error {
@@ -70,7 +74,7 @@ func runConvert(c *cobra.Command, args []string) error {
 	if len(resolvedInputs) == 0 {
 		return fmt.Errorf("no matching input files")
 	}
-	return runBatchMode(resolvedInputs, out, engineFlag)
+	return runBatchMode(resolvedInputs, out, engineFlag, formatStyleFlag)
 }
 
 func mergeConvertArgs(args []string, existingInputs []string, existingOutput string) ([]string, string, error) {
@@ -118,7 +122,7 @@ func expandGlobs(paths []string) ([]string, error) {
 	return out, nil
 }
 
-func runBatchMode(inputs []string, output string, engineFlag string) error {
+func runBatchMode(inputs []string, output string, engineFlag string, formatStyle string) error {
 	outputIsExt := isOutputExtension(output, len(inputs))
 	for _, in := range inputs {
 		out := resolveOutputPath(in, output, outputIsExt, len(inputs))
@@ -132,18 +136,75 @@ func runBatchMode(inputs []string, output string, engineFlag string) error {
 				}
 			}
 		}
-		if err := convertOne(in, out, engineFlag); err != nil {
-			format.Error("%s", err)
+		if err := convertOne(in, out, engineFlag, formatStyle); err != nil {
 			return err
 		}
-		if !quietFlag {
+		if !quietFlag && !useConvertUI(out) {
 			format.Success("Converted %s -> %s", in, out)
 		}
 	}
 	return nil
 }
 
-func convertOne(in, out string, engineFlag string) error {
+func convertOne(in, out string, engineFlag string, formatStyle string) error {
+	if useConvertUI(out) {
+		return runConvertAnimated(in, out, engineFlag, formatStyle)
+	}
+	return convertOneWithSpinner(in, out, engineFlag, formatStyle)
+}
+
+func runConvertAnimated(in, out string, engineFlag string, formatStyle string) error {
+	started := time.Now()
+	return ui.Run(ui.Spec{
+		Command: fmt.Sprintf("flux convert %s %s", in, out),
+		Running: fmt.Sprintf("converting %s", in),
+		Run: func() (ui.Result, error) {
+			if err := convertOneRaw(in, out, engineFlag, formatStyle); err != nil {
+				return ui.Result{ErrorHint: "check supported formats: flux lf"}, err
+			}
+
+			meta := []ui.Meta{
+				{Key: "from", Value: in},
+				{Key: "to", Value: out},
+				{Key: "engine", Value: engineFlag},
+				{Key: "time", Value: time.Since(started).Round(time.Millisecond).String()},
+			}
+			if st, err := os.Stat(out); err == nil {
+				meta = append(meta, ui.Meta{Key: "size", Value: fmt.Sprintf("%d bytes", st.Size())})
+			}
+
+			return ui.Result{
+				Meta:    meta,
+				Success: "OK converted",
+			}, nil
+		},
+	})
+}
+
+func convertOneWithSpinner(in, out string, engineFlag string, formatStyle string) error {
+	fromFormat := fromFlag
+	if fromFormat == "" {
+		fromFormat = data.FormatFromExt(in)
+	}
+	toFormat := toFlag
+	if toFormat == "" {
+		toFormat = data.FormatFromExt(out)
+	}
+
+	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
+		sp := spinner.New("data ...")
+		sp.Start()
+		defer sp.Stop()
+		return data.Convert(in, out, fromFormat, toFormat)
+	}
+
+	sp := spinner.New(resolveEngineLabel(in, out, engineFlag) + " ...")
+	sp.Start()
+	defer sp.Stop()
+	return convertOneRaw(in, out, engineFlag, formatStyle)
+}
+
+func convertOneRaw(in, out string, engineFlag string, formatStyle string) error {
 	fromFormat := fromFlag
 	if fromFormat == "" {
 		fromFormat = data.FormatFromExt(in)
@@ -168,33 +229,75 @@ func convertOne(in, out string, engineFlag string) error {
 	}
 
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
-		sp := spinner.New("data ...")
-		sp.Start()
-		defer sp.Stop()
 		return data.Convert(in, out, fromFormat, toFormat)
 	}
 	factory := engine.NewFactory(engine.NewDefaultRunner())
 	var eng engine.Engine
 	var err error
-	var engineName string
+	var selectedEngine string
 	if engineFlag == "auto" {
 		preferred := engine.RouteByFormat(in, out)
 		eng, err = factory.AutoEngine(preferred)
 		if err != nil {
 			return err
 		}
-		engineName = preferred[0]
+		selectedEngine = engineNameFromAdapter(eng)
 	} else {
 		eng, err = factory.GetEngine(engineFlag)
 		if err != nil {
 			return err
 		}
-		engineName = engineFlag
+		selectedEngine = engineFlag
 	}
-	sp := spinner.New(engineName + " ...")
-	sp.Start()
-	defer sp.Stop()
-	return eng.Convert(in, out, []string{})
+
+	// Build args with formatter if applicable (Pandoc engine only)
+	args := []string{}
+	outExt := filepath.Ext(out)
+	if selectedEngine == "pandoc" && format.IsDocumentFormat(outExt) {
+		formatter := format.NewDocumentFormatter(formatStyle)
+		args = formatter.PandocArgs(out)
+	}
+
+	return eng.Convert(in, out, args)
+}
+
+func engineNameFromAdapter(eng engine.Engine) string {
+	switch eng.(type) {
+	case *engine.PandocAdapter:
+		return "pandoc"
+	case *engine.FFmpegAdapter:
+		return "ffmpeg"
+	case *engine.ImageMagickAdapter:
+		return "imagemagick"
+	case *engine.DataAdapter:
+		return "data"
+	default:
+		return "auto"
+	}
+}
+
+func resolveEngineLabel(in, out, engineFlag string) string {
+	if engineFlag != "auto" {
+		return engineFlag
+	}
+	if isDataConversion(in, out) {
+		return "data"
+	}
+	preferred := engine.RouteByFormat(in, out)
+	if len(preferred) == 0 {
+		return "auto"
+	}
+	return preferred[0]
+}
+
+func useConvertUI(out string) bool {
+	if quietFlag {
+		return false
+	}
+	if out == "-" {
+		return false
+	}
+	return ui.ShouldRender()
 }
 
 func isOutputExtension(output string, inputCount int) bool {

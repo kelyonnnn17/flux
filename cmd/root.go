@@ -7,10 +7,12 @@ import (
 
 	"github.com/kelyonnnn17/flux/internal/config"
 	"github.com/kelyonnnn17/flux/internal/format"
+	"github.com/kelyonnnn17/flux/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var noColorFlag bool
+var noUIFlag bool
 
 var rootCmd = &cobra.Command{
 	Use:   "flux",
@@ -21,12 +23,14 @@ var rootCmd = &cobra.Command{
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		format.Init(noColorFlag)
+		ui.Configure(!noUIFlag, noColorFlag)
 	},
 }
 
 func init() {
 	rootCmd.PersistentFlags().String("engine", "auto", "Conversion engine to use: ffmpeg|imagemagick|pandoc|data|auto")
 	rootCmd.PersistentFlags().BoolVar(&noColorFlag, "no-color", false, "Disable ANSI color output")
+	rootCmd.PersistentFlags().BoolVar(&noUIFlag, "no-ui", false, "Disable animated terminal UI")
 }
 
 func Execute() {

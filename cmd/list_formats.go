@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/kelyonnnn17/flux/internal/format"
+	"github.com/kelyonnnn17/flux/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -10,6 +11,25 @@ var listFormatsCmd = &cobra.Command{
 	Aliases: []string{"lf"},
 	Short:   "Show supported input/output format combinations",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if ui.ShouldRender() {
+			return ui.Run(ui.Spec{
+				Command: "flux list-formats",
+				Running: "loading supported formats",
+				Run: func() (ui.Result, error) {
+					return ui.Result{
+						Meta: []ui.Meta{{Key: "command", Value: "list-formats"}},
+						Lines: []ui.Line{
+							{Kind: "info", Text: "pandoc: pdf, docx, odt, md, tex, epub, html, rst"},
+							{Kind: "info", Text: "imagemagick: jpg, png, gif, tiff, bmp, webp, svg"},
+							{Kind: "info", Text: "ffmpeg: mp4, mkv, avi, mov, mp3, wav, webm, m4a, flac, ogg"},
+							{Kind: "info", Text: "data: csv, tsv, json, yaml, toml"},
+						},
+						Success: "formats loaded",
+					}, nil
+				},
+			})
+		}
+
 		format.Primary("Supported conversions by engine:")
 		format.Info("  pandoc:     pdf, docx, odt, md, tex, epub, html, rst")
 		format.Info("  imagemagick: jpg, png, gif, tiff, bmp, webp, svg")

@@ -1,8 +1,17 @@
-.PHONY: build setup install uninstall reinstall test test-integration coverage
+.PHONY: build setup install install-global uninstall reinstall test test-integration coverage
 
 BINARY := flux
 BUILD_OUT := bin/$(BINARY)
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+ifeq ($(wildcard /opt/homebrew/bin),/opt/homebrew/bin)
+PREFIX ?= /opt/homebrew
+else
 PREFIX ?= /usr/local
+endif
+else
+PREFIX ?= /usr/local
+endif
 BINDIR ?= $(PREFIX)/bin
 INSTALL_PATH ?= $(BINDIR)/$(BINARY)
 
@@ -11,6 +20,9 @@ build:
 
 setup:
 	@./scripts/setup.sh
+
+install-global:
+	@./scripts/install-go.sh
 
 install: build
 	mkdir -p "$(BINDIR)"

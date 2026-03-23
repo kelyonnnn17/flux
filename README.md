@@ -1,54 +1,87 @@
 # Flux Universal File Converter
 
-A cross-platform CLI for converting files across formats using FFmpeg, ImageMagick, and Pandoc.
+Flux is a cross-platform converter for documents, images, audio/video, and structured data.
 
-## Quick Start
+- Documents: Pandoc
+- Images: ImageMagick
+- Audio/Video: FFmpeg
+- Data (CSV/JSON/YAML/TOML): built-in Go engine
+
+## Quick Start (CLI)
+
+### Global Install (like pip)
+
+Use this when you want `flux` available from any directory after one install command.
+
+macOS/Linux:
 
 ```sh
-./scripts/setup.sh      # install deps, build, install flux command, verify (interactive)
-./scripts/setup.sh -y   # same, install engines without prompting
-make setup              # alias for ./scripts/setup.sh
+./scripts/install-go.sh
+```
 
-# after setup, this works directly
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-go.ps1
+```
+
+This installs via `go install github.com/kelyonnnn17/flux@latest` and updates your user PATH to include Go's binary directory if needed.
+
+### macOS and Linux
+
+```sh
+./scripts/setup.sh
+./scripts/setup.sh -y
+make setup
 flux --help
 ```
 
-## Building
+### Windows (PowerShell)
 
-```sh
-make build                  # builds local binary at ./bin/flux
-make install                # installs flux into /usr/local/bin by default
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -Yes
 flux --help
 ```
 
-If you prefer a user-local install path:
+What setup does:
+
+1. Installs runtime engines (optional prompt or forced with `-y` / `-Yes`)
+2. Builds Flux
+3. Installs Flux into a PATH location
+4. Runs verification (`flux doctor`)
+
+If you already have Go and only need a global install, prefer the `install-go` scripts above.
+
+## Build and Install
+
+```sh
+make build
+make install
+```
+
+Install path defaults:
+
+1. Apple Silicon macOS: `/opt/homebrew/bin`
+2. Other systems: `/usr/local/bin`
+
+Override install directory:
 
 ```sh
 make install BINDIR=$HOME/.local/bin
 ```
 
-## Docker
-
-Run without installing dependencies:
-
-```sh
-docker build -t flux .
-docker run --rm flux convert -i input.json -o output.yaml
-```
-
-See [REQUIREMENTS.md](REQUIREMENTS.md) for full dependency list.
-
 ## Usage
 
-Shortest conversion syntax (recommended):
+Shortest syntax:
 
 ```sh
 flux input.jpg png
-flux ./docs/guide.md pdf
-flux ./media/clip.mov mp4
+flux docs/guide.md pdf
+flux media/clip.mov mp4
 ```
 
-Convert a file between formats (explicit command):
+Explicit command syntax:
 
 ```sh
 flux convert input.jpg png
@@ -56,15 +89,7 @@ flux convert document.md pdf
 flux convert video.mp4 mkv
 ```
 
-Legacy flag syntax (still supported):
-
-```sh
-flux convert -i input.jpg -o output.png
-flux convert -i document.md -o document.pdf
-flux convert -i video.mp4 -o video.mkv
-```
-
-Convert data files (CSV, JSON, YAML, TOML):
+Data conversion:
 
 ```sh
 flux convert -i data.json -o data.yaml
@@ -72,20 +97,20 @@ flux convert -i sheet.csv -o sheet.json
 flux convert -i config.toml -o config.yaml --from toml --to yaml
 ```
 
-Batch conversion (multiple files or globs):
+Batch conversion:
 
 ```sh
 flux convert -i a.jpg b.jpg c.jpg -o png
 flux convert -i *.json -o yaml --force
 ```
 
-Pipe / stdin support:
+Pipe/stdin:
 
 ```sh
 cat file.json | flux convert -o - --from json --to yaml > out.yaml
 ```
 
-Override the conversion engine (default is auto, which picks by file type):
+Engine override:
 
 ```sh
 flux convert -i file.pdf -o file.html --engine pandoc
@@ -94,7 +119,22 @@ flux convert -i audio.mp3 -o audio.wav --engine ffmpeg
 flux convert -i data.json -o data.csv --engine data
 ```
 
-Short command aliases:
+Document formatting presets:
+
+```sh
+flux convert -i notes.md -o notes.html --engine pandoc --format-style professional
+flux convert -i notes.md -o notes.pdf --engine pandoc --format-style technical
+flux convert -i notes.md -o notes.html --engine pandoc --format-style none
+```
+
+## Commands
+
+1. `flux convert` - Convert files
+2. `flux doctor` - Check engine availability and versions
+3. `flux list-formats` - Show format coverage per engine
+4. `flux info <file>` - Inspect metadata
+
+Aliases:
 
 ```sh
 flux c file.md pdf
@@ -103,39 +143,68 @@ flux lf
 flux i file.pdf
 ```
 
-## Commands
+## Use as a Go Library
 
-- `flux convert` – convert files between formats
-- `flux doctor` – check installed engines and versions
-- `flux list-formats` – show supported conversions per engine
-- `flux info <file>` – inspect file metadata
+Flux now exposes a public library package:
 
-## Configuration
-
-Optional config at `~/.config/flux/config.yaml`:
-
-```yaml
-log_level: info
+```sh
+go get github.com/kelyonnnn17/flux/pkg/flux
 ```
+
+Library example with auto dependency installation:
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	fluxlib "github.com/kelyonnnn17/flux/pkg/flux"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Try to auto-install missing runtime engines using brew/apt/dnf/pacman/choco/winget.
+	if _, err := fluxlib.EnsureDependencies(ctx, true); err != nil {
+		log.Fatalf("dependency setup failed: %v", err)
+	}
+
+	err := fluxlib.Convert("README.md", "README.html", fluxlib.ConvertOptions{
+		Engine:      "auto",
+		FormatStyle: "professional",
+	})
+	if err != nil {
+		log.Fatalf("convert failed: %v", err)
+	}
+}
+```
+
+Note: auto-install still depends on OS package-manager permissions (for example `sudo` on Linux or admin shell on Windows).
 
 ## Terminal UX
 
-Flux output is cyan-themed by default and respects both `NO_COLOR` and `--no-color`.
+Animated terminal UI is enabled for interactive commands.
 
-If you want the typed `flux` command itself to appear in cyan and add terminal animations,
-configure your shell prompt/theme. See [ZSH_UX_GUIDE.md](ZSH_UX_GUIDE.md).
+- Disable animations: `--no-ui`
+- Disable colors: `--no-color` or `NO_COLOR=1`
 
-## Requirements
-
-At least one of: FFmpeg, ImageMagick, or Pandoc on `$PATH`. Install examples:
+Examples:
 
 ```sh
-# macOS
-brew install ffmpeg imagemagick pandoc
-
-# Ubuntu/Debian
-apt install ffmpeg imagemagick pandoc
-
-# Windows
-choco install ffmpeg imagemagick pandoc
+flux doctor
+flux --no-ui doctor
+NO_COLOR=1 flux doctor
 ```
+
+## Docker
+
+```sh
+docker build -t flux .
+docker run --rm flux convert -i input.json -o output.yaml
+```
+
+## More Details
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for complete dependency, platform, and verification guidance.
