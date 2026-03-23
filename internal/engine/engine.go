@@ -154,10 +154,6 @@ func CanConvert(src, dst string) (string, string, error) {
 
 	// Try each engine in preference order
 	for _, engineName := range preferred {
-		if !binaryExists(engineName) {
-			continue
-		}
-
 		inputs := engineInputFormats[engineName]
 		outputs := engineOutputFormats[engineName]
 
@@ -182,9 +178,6 @@ func suggestAlternative(srcExt, dstExt string) string {
 
 	// Check what output format the target engine supports
 	for _, engineName := range []string{"pandoc", "imagemagick", "ffmpeg", "data"} {
-		if !binaryExists(engineName) {
-			continue
-		}
 		outputs := engineOutputFormats[engineName]
 		if outputs[dstExt] {
 			// Find a common intermediate format

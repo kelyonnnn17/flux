@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -162,7 +163,7 @@ func convertOne(in, out string, engineFlag string) error {
 			} else {
 				msg = fmt.Sprintf("%v", err)
 			}
-			return fmt.Errorf(msg)
+			return errors.New(msg)
 		}
 	}
 
