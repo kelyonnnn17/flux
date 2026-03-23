@@ -5,16 +5,26 @@ A cross-platform CLI for converting files across formats using FFmpeg, ImageMagi
 ## Quick Start
 
 ```sh
-./scripts/setup.sh      # install deps, build, verify (interactive)
+./scripts/setup.sh      # install deps, build, install flux command, verify (interactive)
 ./scripts/setup.sh -y   # same, install engines without prompting
 make setup              # alias for ./scripts/setup.sh
+
+# after setup, this works directly
+flux --help
 ```
 
 ## Building
 
 ```sh
-make build   # builds the binary at ./bin/flux
-./bin/flux --help
+make build                  # builds local binary at ./bin/flux
+make install                # installs flux into /usr/local/bin by default
+flux --help
+```
+
+If you prefer a user-local install path:
+
+```sh
+make install BINDIR=$HOME/.local/bin
 ```
 
 ## Docker
@@ -30,7 +40,23 @@ See [REQUIREMENTS.md](REQUIREMENTS.md) for full dependency list.
 
 ## Usage
 
-Convert a file between formats:
+Shortest conversion syntax (recommended):
+
+```sh
+flux input.jpg png
+flux ./docs/guide.md pdf
+flux ./media/clip.mov mp4
+```
+
+Convert a file between formats (explicit command):
+
+```sh
+flux convert input.jpg png
+flux convert document.md pdf
+flux convert video.mp4 mkv
+```
+
+Legacy flag syntax (still supported):
 
 ```sh
 flux convert -i input.jpg -o output.png
@@ -68,6 +94,15 @@ flux convert -i audio.mp3 -o audio.wav --engine ffmpeg
 flux convert -i data.json -o data.csv --engine data
 ```
 
+Short command aliases:
+
+```sh
+flux c file.md pdf
+flux d
+flux lf
+flux i file.pdf
+```
+
 ## Commands
 
 - `flux convert` – convert files between formats
@@ -82,6 +117,13 @@ Optional config at `~/.config/flux/config.yaml`:
 ```yaml
 log_level: info
 ```
+
+## Terminal UX
+
+Flux output is cyan-themed by default and respects both `NO_COLOR` and `--no-color`.
+
+If you want the typed `flux` command itself to appear in cyan and add terminal animations,
+configure your shell prompt/theme. See [ZSH_UX_GUIDE.md](ZSH_UX_GUIDE.md).
 
 ## Requirements
 

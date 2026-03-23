@@ -7,9 +7,98 @@ cd "$(dirname "$0")/.."
 
 INSTALL_ENGINES=false
 [[ "${1:-}" == "--yes" || "${1:-}" == "-y" ]] && INSTALL_ENGINES=true
+PATH_UPDATED=false
 
 echo "==> Flux setup"
 echo
+
+detect_shell_profile() {
+    local shell_name
+    shell_name="$(basename "${SHELL:-}")"
+    case "$shell_name" in
+        zsh) echo "$HOME/.zshrc" ;;
+        bash) echo "$HOME/.bashrc" ;;
+        *) echo "$HOME/.profile" ;;
+    esac
+}
+
+is_in_path() {
+    local dir="$1"
+    case ":$PATH:" in
+        *":$dir:"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ensure_path_contains() {
+    local dir="$1"
+    local profile
+    profile="$(detect_shell_profile)"
+
+    if is_in_path "$dir"; then
+        return 0
+    fi
+
+    if [[ ! -f "$profile" ]]; then
+        touch "$profile"
+    fi
+
+    if ! grep -Fq "# flux-path" "$profile"; then
+        {
+            echo
+            echo "# flux-path"
+            echo "export PATH=\"$dir:\$PATH\""
+        } >>"$profile"
+        echo "OK Added $dir to PATH in $profile"
+        PATH_UPDATED=true
+    fi
+
+    export PATH="$dir:$PATH"
+}
+
+install_flux() {
+    local install_dir=""
+    local preferred_dirs=()
+
+    case "$(uname -s)" in
+        Darwin)
+            preferred_dirs=("/opt/homebrew/bin" "/usr/local/bin" "$HOME/.local/bin")
+            ;;
+        Linux)
+            preferred_dirs=("/usr/local/bin" "$HOME/.local/bin")
+            ;;
+        *)
+            preferred_dirs=("$HOME/.local/bin")
+            ;;
+    esac
+
+    # Prefer a writable directory that is already on PATH so flux works immediately.
+    for d in "${preferred_dirs[@]}"; do
+        if [[ -d "$d" && -w "$d" ]] && is_in_path "$d"; then
+            install_dir="$d"
+            break
+        fi
+    done
+
+    for d in "${preferred_dirs[@]}"; do
+        [[ -n "$install_dir" ]] && break
+        if [[ -d "$d" && -w "$d" ]]; then
+            install_dir="$d"
+            break
+        fi
+    done
+
+    if [[ -z "$install_dir" ]]; then
+        if [[ ! -d "$HOME/.local/bin" ]]; then
+            mkdir -p "$HOME/.local/bin"
+        fi
+        install_dir="$HOME/.local/bin"
+    fi
+
+    echo "==> Installing flux to $install_dir"
+    make install BINDIR="$install_dir"
+    ensure_path_contains "$install_dir"
+}
 
 # Check Go
 if ! command -v go &>/dev/null; then
@@ -70,4 +159,14 @@ echo "==> Checking engines"
 ./bin/flux doctor
 echo
 
-echo "==> Done. Run: ./bin/flux --help"
+install_flux
+
+echo "==> Verifying installed command"
+flux --help >/dev/null
+echo "OK flux command is available"
+if [[ "$PATH_UPDATED" == true ]]; then
+    echo "OK PATH was updated for future shells. Open a new terminal to pick up that change."
+fi
+echo
+
+echo "==> Done. Run: flux --help"

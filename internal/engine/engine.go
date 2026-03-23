@@ -1,10 +1,52 @@
 package engine
 
 import (
-    "errors"
-    "os/exec"
-    "path/filepath"
-    "strings"
+	"errors"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+var (
+	// engineInputFormats maps engine names to formats they can READ (input)
+	engineInputFormats = map[string]map[string]bool{
+		"pandoc": {
+			"pdf": false, // PDF input NOT supported
+			"docx": true, "odt": true, "md": true, "tex": true,
+			"epub": true, "html": true, "rst": true,
+		},
+		"imagemagick": {
+			"jpg": true, "jpeg": true, "png": true, "gif": true,
+			"tiff": true, "tif": true, "bmp": true, "webp": true, "svg": true,
+		},
+		"ffmpeg": {
+			"mp4": true, "mkv": true, "avi": true, "mov": true,
+			"mp3": true, "wav": true, "webm": true, "m4a": true, "flac": true, "ogg": true,
+		},
+		"data": {
+			"csv": true, "tsv": true, "json": true, "yaml": true, "yml": true, "toml": true,
+		},
+	}
+
+	// engineOutputFormats maps engine names to formats they can WRITE (output)
+	engineOutputFormats = map[string]map[string]bool{
+		"pandoc": {
+			"pdf": true, "docx": true, "odt": true, "md": true, "tex": true,
+			"epub": true, "html": true, "rst": true,
+		},
+		"imagemagick": {
+			"jpg": true, "jpeg": true, "png": true, "gif": true,
+			"tiff": true, "tif": true, "bmp": true, "webp": true, "svg": true,
+		},
+		"ffmpeg": {
+			"mp4": true, "mkv": true, "avi": true, "mov": true,
+			"mp3": true, "wav": true, "webm": true, "m4a": true, "flac": true, "ogg": true,
+		},
+		"data": {
+			"csv": true, "tsv": true, "json": true, "yaml": true, "yml": true, "toml": true,
+		},
+	}
 )
 
 type Engine interface {
@@ -50,50 +92,109 @@ func (f *EngineFactory) AutoEngine(preferred []string) (Engine, error) {
 // based on file extensions. Used when engine is "auto".
 // PRD: Documents -> Pandoc, Images -> ImageMagick, Audio/Video -> FFmpeg, Data -> Go.
 func RouteByFormat(src, dst string) []string {
-    srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
-    dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
-    if isDataExt(srcExt) && isDataExt(dstExt) {
-        return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
-    }
-    ext := srcExt
-    switch ext {
-    case "pdf", "docx", "odt", "md", "tex", "epub", "html", "rst":
-        return []string{"pandoc", "imagemagick", "ffmpeg"}
-    case "jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "webp", "svg":
-        return []string{"imagemagick", "ffmpeg", "pandoc"}
-    case "mp4", "mkv", "avi", "mov", "mp3", "wav", "webm", "m4a", "flac", "ogg":
-        return []string{"ffmpeg", "imagemagick", "pandoc"}
-    case "csv", "tsv", "json", "yaml", "toml":
-        return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
-    default:
-        return []string{"ffmpeg", "imagemagick", "pandoc"}
-    }
+	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
+	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+	if isDataExt(srcExt) && isDataExt(dstExt) {
+		return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
+	}
+	ext := srcExt
+	switch ext {
+	case "pdf", "docx", "odt", "md", "tex", "epub", "html", "rst":
+		return []string{"pandoc", "imagemagick", "ffmpeg"}
+	case "jpg", "jpeg", "png", "gif", "tiff", "tif", "bmp", "webp", "svg":
+		return []string{"imagemagick", "ffmpeg", "pandoc"}
+	case "mp4", "mkv", "avi", "mov", "mp3", "wav", "webm", "m4a", "flac", "ogg":
+		return []string{"ffmpeg", "imagemagick", "pandoc"}
+	case "csv", "tsv", "json", "yaml", "toml":
+		return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
+	default:
+		return []string{"ffmpeg", "imagemagick", "pandoc"}
+	}
 }
 
 func isDataExt(ext string) bool {
-    switch ext {
-    case "csv", "tsv", "json", "yaml", "yml", "toml":
-        return true
-    }
-    return false
+	switch ext {
+	case "csv", "tsv", "json", "yaml", "yml", "toml":
+		return true
+	}
+	return false
 }
 
 func binaryExists(name string) bool {
-    if name == "data" {
-        return true // data converter is always available
-    }
-    switch name {
-    case "ffmpeg", "pandoc":
-        if _, err := exec.LookPath(name); err == nil {
-            return true
-        }
-    case "imagemagick":
-        if _, err := exec.LookPath("magick"); err == nil {
-            return true
-        }
-        if _, err := exec.LookPath("convert"); err == nil {
-            return true
-        }
-    }
-    return false
+	if name == "data" {
+		return true // data converter is always available
+	}
+	switch name {
+	case "ffmpeg", "pandoc":
+		if _, err := exec.LookPath(name); err == nil {
+			return true
+		}
+	case "imagemagick":
+		if _, err := exec.LookPath("magick"); err == nil {
+			return true
+		}
+		if _, err := exec.LookPath("convert"); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// CanConvert checks if converting from src to dst format is possible.
+// Returns the best engine name, a suggested workaround, and an error.
+func CanConvert(src, dst string) (string, string, error) {
+	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
+	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+
+	if srcExt == dstExt {
+		return "", "", fmt.Errorf("source and target format are the same (%s)", srcExt)
+	}
+
+	preferred := RouteByFormat(src, dst)
+
+	// Try each engine in preference order
+	for _, engineName := range preferred {
+		if !binaryExists(engineName) {
+			continue
+		}
+
+		inputs := engineInputFormats[engineName]
+		outputs := engineOutputFormats[engineName]
+
+		if inputs[srcExt] && outputs[dstExt] {
+			return engineName, "", nil
+		}
+	}
+
+	// No engine found; suggest alternatives
+	alternative := suggestAlternative(srcExt, dstExt)
+	return "", alternative, fmt.Errorf("%s→%s conversion not supported", srcExt, dstExt)
+}
+
+func suggestAlternative(srcExt, dstExt string) string {
+	// Special case: PDF input
+	if srcExt == "pdf" {
+		// Suggest converting PDF to intermediate format
+		if outputs := engineOutputFormats["imagemagick"]; outputs["png"] {
+			return fmt.Sprintf("PDF cannot be read directly. Workaround: (1) flux file.pdf png, then (2) flux file.png %s", dstExt)
+		}
+	}
+
+	// Check what output format the target engine supports
+	for _, engineName := range []string{"pandoc", "imagemagick", "ffmpeg", "data"} {
+		if !binaryExists(engineName) {
+			continue
+		}
+		outputs := engineOutputFormats[engineName]
+		if outputs[dstExt] {
+			// Find a common intermediate format
+			for intermediate := range engineOutputFormats["imagemagick"] {
+				if engineInputFormats[engineName][intermediate] {
+					return fmt.Sprintf("Workaround: (1) flux file.%s %s, then (2) flux file.%s %s", srcExt, intermediate, intermediate, dstExt)
+				}
+			}
+		}
+	}
+
+	return "No conversion path found. Check supported formats: flux lf"
 }

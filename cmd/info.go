@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/kelyonnnn17/flux/internal/format"
+	"github.com/spf13/cobra"
 )
 
 var infoCmd = &cobra.Command{
-	Use:   "info [file]",
-	Short: "Inspect file metadata",
-	Args:  cobra.ExactArgs(1),
+	Use:     "info [file]",
+	Aliases: []string{"i"},
+	Short:   "Inspect file metadata",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path := args[0]
 		info, err := os.Stat(path)

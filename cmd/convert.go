@@ -7,26 +7,27 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/kelyonnnn17/flux/internal/data"
 	"github.com/kelyonnnn17/flux/internal/engine"
 	"github.com/kelyonnnn17/flux/internal/format"
 	"github.com/kelyonnnn17/flux/internal/spinner"
+	"github.com/spf13/cobra"
 )
 
 var (
 	inputPaths []string
 	outputPath string
 	fromFlag   string
-	toFlag      string
-	forceFlag   bool
-	quietFlag   bool
+	toFlag     string
+	forceFlag  bool
+	quietFlag  bool
 )
 
 var convertCmd = &cobra.Command{
-	Use:   "convert",
-	Short: "Convert files between formats",
-	RunE:  runConvert,
+	Use:     "convert [input_path] [output_format_or_path]",
+	Aliases: []string{"c"},
+	Short:   "Convert files between formats",
+	RunE:    runConvert,
 }
 
 func init() {
@@ -37,31 +38,63 @@ func init() {
 	convertCmd.Flags().StringVar(&toFlag, "to", "", "Output format (csv|json|yaml|toml); required for pipe")
 	convertCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing files without prompting")
 	convertCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress output; exit code only")
-	_ = convertCmd.MarkFlagRequired("output")
 }
 
 func runConvert(c *cobra.Command, args []string) error {
-	engineFlag, _ := c.Root().PersistentFlags().GetString("engine")
-	if len(inputPaths) == 0 {
-		if isStdinPipe() {
-			return runPipeMode()
-		}
-		return fmt.Errorf("input required: use -i <path> or -i - for stdin")
-	}
-	if inputPaths[0] == "-" {
-		if len(inputPaths) > 1 {
-			return fmt.Errorf("stdin mode accepts only one input")
-		}
-		return runPipeMode()
-	}
-	inputs, err := expandGlobs(inputPaths)
+	inputs, out, err := mergeConvertArgs(args, inputPaths, outputPath)
 	if err != nil {
 		return err
 	}
+
+	engineFlag, _ := c.Root().PersistentFlags().GetString("engine")
 	if len(inputs) == 0 {
+		if isStdinPipe() {
+			return runPipeMode(out)
+		}
+		return fmt.Errorf("input required: use flux convert <input_path> <output_format_or_path> or -i <path>")
+	}
+	if inputs[0] == "-" {
+		if len(inputs) > 1 {
+			return fmt.Errorf("stdin mode accepts only one input")
+		}
+		return runPipeMode(out)
+	}
+	if out == "" {
+		return fmt.Errorf("output required: use <output_format_or_path> or -o")
+	}
+	resolvedInputs, err := expandGlobs(inputs)
+	if err != nil {
+		return err
+	}
+	if len(resolvedInputs) == 0 {
 		return fmt.Errorf("no matching input files")
 	}
-	return runBatchMode(inputs, engineFlag)
+	return runBatchMode(resolvedInputs, out, engineFlag)
+}
+
+func mergeConvertArgs(args []string, existingInputs []string, existingOutput string) ([]string, string, error) {
+	if len(args) > 2 {
+		return nil, "", fmt.Errorf("too many arguments: expected flux convert <input_path> <output_format_or_path>")
+	}
+
+	mergedInputs := append([]string(nil), existingInputs...)
+	mergedOutput := existingOutput
+
+	if len(args) >= 1 {
+		if len(existingInputs) > 0 {
+			return nil, "", fmt.Errorf("cannot mix positional input with -i/--input")
+		}
+		mergedInputs = []string{args[0]}
+	}
+
+	if len(args) == 2 {
+		if existingOutput != "" {
+			return nil, "", fmt.Errorf("cannot mix positional output with -o/--output")
+		}
+		mergedOutput = args[1]
+	}
+
+	return mergedInputs, mergedOutput, nil
 }
 
 func expandGlobs(paths []string) ([]string, error) {
@@ -84,10 +117,10 @@ func expandGlobs(paths []string) ([]string, error) {
 	return out, nil
 }
 
-func runBatchMode(inputs []string, engineFlag string) error {
-	outputIsExt := isOutputExtension(len(inputs))
+func runBatchMode(inputs []string, output string, engineFlag string) error {
+	outputIsExt := isOutputExtension(output, len(inputs))
 	for _, in := range inputs {
-		out := resolveOutputPath(in, outputIsExt, len(inputs))
+		out := resolveOutputPath(in, output, outputIsExt, len(inputs))
 		if out == "" {
 			return fmt.Errorf("cannot resolve output for %s", in)
 		}
@@ -118,6 +151,22 @@ func convertOne(in, out string, engineFlag string) error {
 	if toFormat == "" {
 		toFormat = data.FormatFromExt(out)
 	}
+
+	// Validate conversion is possible
+	if engineFlag != "data" && !isDataConversion(in, out) {
+		engineName, workaround, err := engine.CanConvert(in, out)
+		if err != nil {
+			var msg string
+			if workaround != "" {
+				msg = fmt.Sprintf("%v. %s", err, workaround)
+			} else {
+				msg = fmt.Sprintf("%v", err)
+			}
+			return fmt.Errorf(msg)
+		}
+		engineName = engineName // Validation passed, use validated engine
+	}
+
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
 		sp := spinner.New("data ...")
 		sp.Start()
@@ -148,33 +197,33 @@ func convertOne(in, out string, engineFlag string) error {
 	return eng.Convert(in, out, []string{})
 }
 
-func isOutputExtension(inputCount int) bool {
-	if outputPath == "" || outputPath == "-" {
+func isOutputExtension(output string, inputCount int) bool {
+	if output == "" || output == "-" {
 		return false
 	}
-	if filepath.IsAbs(outputPath) || strings.ContainsRune(outputPath, filepath.Separator) {
+	if filepath.IsAbs(output) || strings.ContainsRune(output, filepath.Separator) {
 		return false
 	}
 	if inputCount > 1 {
 		return true
 	}
-	return !strings.Contains(outputPath, ".")
+	return !strings.Contains(output, ".")
 }
 
-func resolveOutputPath(in string, outputIsExt bool, inputCount int) string {
-	if outputPath == "" || outputPath == "-" {
+func resolveOutputPath(in string, output string, outputIsExt bool, inputCount int) string {
+	if output == "" || output == "-" {
 		return ""
 	}
 	if outputIsExt {
-		ext := strings.TrimPrefix(outputPath, ".")
+		ext := strings.TrimPrefix(output, ".")
 		return strings.TrimSuffix(in, filepath.Ext(in)) + "." + ext
 	}
 	if inputCount > 1 {
 		dir := filepath.Dir(in)
-		base := strings.TrimSuffix(filepath.Base(in), filepath.Ext(in)) + filepath.Ext(outputPath)
+		base := strings.TrimSuffix(filepath.Base(in), filepath.Ext(in)) + filepath.Ext(output)
 		return filepath.Join(dir, base)
 	}
-	return outputPath
+	return output
 }
 
 func promptOverwrite(out string) bool {
@@ -187,8 +236,8 @@ func promptOverwrite(out string) bool {
 	return false
 }
 
-func runPipeMode() error {
-	if outputPath != "-" {
+func runPipeMode(output string) error {
+	if output != "-" {
 		return fmt.Errorf("pipe mode requires -o -")
 	}
 	if fromFlag == "" || toFlag == "" {

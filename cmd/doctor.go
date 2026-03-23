@@ -1,14 +1,15 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/kelyonnnn17/flux/internal/engine"
 	"github.com/kelyonnnn17/flux/internal/format"
+	"github.com/spf13/cobra"
 )
 
 var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check installed engines and versions",
+	Use:     "doctor",
+	Aliases: []string{"d"},
+	Short:   "Check installed engines and versions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		format.Primary("Flux engines:")
 		for _, info := range engine.Doctor() {

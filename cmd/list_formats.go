@@ -1,13 +1,14 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/kelyonnnn17/flux/internal/format"
+	"github.com/spf13/cobra"
 )
 
 var listFormatsCmd = &cobra.Command{
-	Use:   "list-formats",
-	Short: "Show supported input/output format combinations",
+	Use:     "list-formats",
+	Aliases: []string{"lf"},
+	Short:   "Show supported input/output format combinations",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		format.Primary("Supported conversions by engine:")
 		format.Info("  pandoc:     pdf, docx, odt, md, tex, epub, html, rst")

@@ -57,6 +57,9 @@ After installing, run:
 
 ```sh
 go version
+make build
+make install
+flux --help
 flux doctor
 ```
 
