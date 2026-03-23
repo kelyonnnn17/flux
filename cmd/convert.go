@@ -154,7 +154,7 @@ func convertOne(in, out string, engineFlag string) error {
 
 	// Validate conversion is possible
 	if engineFlag != "data" && !isDataConversion(in, out) {
-		engineName, workaround, err := engine.CanConvert(in, out)
+		_, workaround, err := engine.CanConvert(in, out)
 		if err != nil {
 			var msg string
 			if workaround != "" {
@@ -164,7 +164,6 @@ func convertOne(in, out string, engineFlag string) error {
 			}
 			return fmt.Errorf(msg)
 		}
-		engineName = engineName // Validation passed, use validated engine
 	}
 
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
