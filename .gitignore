@@ -15,3 +15,4 @@ coverage.html
 *.swo
 .env
 .env.local
+python/

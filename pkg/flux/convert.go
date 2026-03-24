@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/kelyonnnn17/flux/internal/data"
 	"github.com/kelyonnnn17/flux/internal/engine"
@@ -35,6 +36,7 @@ func Convert(src, dst string, opts ConvertOptions) error {
 	if engineFlag == "" {
 		engineFlag = "auto"
 	}
+	engineFlag = strings.ToLower(engineFlag)
 
 	fromFormat := opts.From
 	if fromFormat == "" {
@@ -45,46 +47,66 @@ func Convert(src, dst string, opts ConvertOptions) error {
 		toFormat = data.FormatFromExt(dst)
 	}
 
-	if engineFlag != "data" && !isDataConversion(src, dst) {
-		_, workaround, err := engine.CanConvert(src, dst)
-		if err != nil {
-			if workaround != "" {
-				return fmt.Errorf("%v. %s", err, workaround)
+	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
+	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+
+	switch engineFlag {
+	case "auto":
+		if !isDataConversion(src, dst) {
+			_, workaround, err := engine.CanConvert(src, dst)
+			if err != nil {
+				if workaround != "" {
+					return fmt.Errorf("%v. %s", err, workaround)
+				}
+				return err
 			}
+		}
+	case "data", "ffmpeg", "imagemagick", "pandoc":
+		ok, err := engine.CanEngineConvert(src, dst, engineFlag)
+		if err != nil {
 			return err
 		}
+		if !ok {
+			bestEngine, workaround, canErr := engine.CanConvert(src, dst)
+			if canErr != nil {
+				if workaround != "" {
+					return fmt.Errorf("%v. %s", canErr, workaround)
+				}
+				return canErr
+			}
+			if bestEngine == "" {
+				bestEngine = "auto"
+			}
+			return fmt.Errorf("engine %s cannot convert %s -> %s; try --engine %s or --engine auto", engineFlag, srcExt, dstExt, bestEngine)
+		}
+	default:
+		return fmt.Errorf("unknown engine: %s", engineFlag)
 	}
 
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(src, dst)) {
 		return data.Convert(src, dst, fromFormat, toFormat)
 	}
 
+	route, err := engine.PlanConversion(src, dst, engineFlag)
+	if err != nil {
+		if engineFlag != "auto" {
+			return fmt.Errorf("engine %s cannot perform route %s -> %s; try --engine auto", engineFlag, srcExt, dstExt)
+		}
+		return err
+	}
+
 	factory := engine.NewFactory(engine.NewDefaultRunner())
-	var eng engine.Engine
-	var err error
-	selectedEngine := engineFlag
-	if engineFlag == "auto" {
-		preferred := engine.RouteByFormat(src, dst)
-		eng, err = factory.AutoEngine(preferred)
-		if err != nil {
-			return err
-		}
-		selectedEngine = engineNameFromAdapter(eng)
-	} else {
-		eng, err = factory.GetEngine(engineFlag)
-		if err != nil {
-			return err
-		}
-	}
 
-	args := []string{}
-	outExt := filepath.Ext(dst)
-	if selectedEngine == "pandoc" && docfmt.IsDocumentFormat(outExt) {
+	return engine.ExecuteRoute(route, src, dst, factory, func(step engine.RouteStep, isFinal bool) []string {
+		if step.Engine != "pandoc" || !isFinal {
+			return nil
+		}
+		if !docfmt.IsDocumentFormat("." + step.ToFormat) {
+			return nil
+		}
 		formatter := docfmt.NewDocumentFormatter(opts.FormatStyle)
-		args = formatter.PandocArgs(dst)
-	}
-
-	return eng.Convert(src, dst, args)
+		return formatter.PandocArgs(dst)
+	})
 }
 
 func isDataConversion(in, out string) bool {

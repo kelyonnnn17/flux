@@ -15,7 +15,7 @@ type EngineInfo struct {
 // Doctor returns status of all engines.
 func Doctor() []EngineInfo {
 	var out []EngineInfo
-	for _, name := range []string{"ffmpeg", "imagemagick", "pandoc", "data"} {
+	for _, name := range []string{"ffmpeg", "imagemagick", "pandoc", "pdftotext", "data"} {
 		info := EngineInfo{Name: name}
 		if name == "data" {
 			info.Path = "built-in"
@@ -45,10 +45,14 @@ func Doctor() []EngineInfo {
 }
 
 func getVersion(name, path string) string {
-	cmd := exec.Command(path, "-version")
-	if name == "imagemagick" {
-		cmd = exec.Command(path, "-version")
+	args := []string{"-version"}
+	switch name {
+	case "pandoc":
+		args = []string{"--version"}
+	case "pdftotext":
+		args = []string{"-v"}
 	}
+	cmd := exec.Command(path, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "?"

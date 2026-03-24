@@ -13,7 +13,7 @@ var (
 	engineInputFormats = map[string]map[string]bool{
 		"pandoc": {
 			"pdf":  false, // PDF input NOT supported
-			"docx": true, "odt": true, "md": true, "tex": true,
+			"docx": true, "odt": true, "md": true, "txt": true, "tex": true,
 			"epub": true, "html": true, "rst": true,
 		},
 		"imagemagick": {
@@ -32,7 +32,7 @@ var (
 	// engineOutputFormats maps engine names to formats they can WRITE (output)
 	engineOutputFormats = map[string]map[string]bool{
 		"pandoc": {
-			"pdf": true, "docx": true, "odt": true, "md": true, "tex": true,
+			"pdf": true, "docx": true, "odt": true, "md": true, "txt": true, "tex": true,
 			"epub": true, "html": true, "rst": true,
 		},
 		"imagemagick": {
@@ -129,6 +129,10 @@ func binaryExists(name string) bool {
 		if _, err := exec.LookPath(name); err == nil {
 			return true
 		}
+	case "pdftotext":
+		if _, err := exec.LookPath("pdftotext"); err == nil {
+			return true
+		}
 	case "imagemagick":
 		if _, err := exec.LookPath("magick"); err == nil {
 			return true
@@ -143,28 +147,36 @@ func binaryExists(name string) bool {
 // CanConvert checks if converting from src to dst format is possible.
 // Returns the best engine name, a suggested workaround, and an error.
 func CanConvert(src, dst string) (string, string, error) {
-	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
-	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+	route, err := PlanConversion(src, dst, "auto")
+	if err == nil {
+		return route.PrimaryEngine(), "", nil
+	}
+	srcExt := normalizeFormat(src)
+	dstExt := normalizeFormat(dst)
+	alternative := suggestAlternative(srcExt, dstExt)
+	return "", alternative, fmt.Errorf("%s->%s conversion not supported", srcExt, dstExt)
+}
+
+// CanEngineConvert checks if a specific engine can convert src->dst, based only on
+// format extensions (no runtime binary availability checks).
+func CanEngineConvert(src, dst, engineName string) (bool, error) {
+	srcExt := normalizeFormat(src)
+	dstExt := normalizeFormat(dst)
 
 	if srcExt == dstExt {
-		return "", "", fmt.Errorf("source and target format are the same (%s)", srcExt)
+		return false, fmt.Errorf("source and target format are the same (%s)", srcExt)
 	}
 
-	preferred := RouteByFormat(src, dst)
-
-	// Try each engine in preference order
-	for _, engineName := range preferred {
-		inputs := engineInputFormats[engineName]
-		outputs := engineOutputFormats[engineName]
-
-		if inputs[srcExt] && outputs[dstExt] {
-			return engineName, "", nil
-		}
+	engineName = strings.ToLower(engineName)
+	if _, ok := engineInputFormats[engineName]; !ok {
+		return false, fmt.Errorf("unknown engine: %s", engineName)
 	}
 
-	// No engine found; suggest alternatives
-	alternative := suggestAlternative(srcExt, dstExt)
-	return "", alternative, fmt.Errorf("%s→%s conversion not supported", srcExt, dstExt)
+	_, err := PlanConversion(src, dst, engineName)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 func suggestAlternative(srcExt, dstExt string) string {

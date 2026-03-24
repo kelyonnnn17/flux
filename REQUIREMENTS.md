@@ -16,7 +16,13 @@ Flux can run with one or more external engines plus its built-in data engine.
 | FFmpeg | `ffmpeg` | Audio/video conversion |
 | ImageMagick | `magick` or `convert` | Image conversion |
 | Pandoc | `pandoc` | Document conversion |
+| PDF text extraction | `pdftotext` | Best-effort PDF input conversion |
 | Data | built-in | CSV/JSON/YAML/TOML conversion |
+
+Notes:
+1. Flux prefers direct conversions, then best-effort multi-step routes.
+2. `--engine <name>` is strict and must support the full route.
+3. PDF input is extracted to text first and may lose visual fidelity.
 
 ## Platform Setup
 
@@ -43,7 +49,7 @@ These scripts run `go install github.com/kelyonnnn17/flux@latest` and ensure Go'
 Manual install:
 
 ```sh
-brew install go ffmpeg imagemagick pandoc
+brew install go ffmpeg imagemagick pandoc poppler
 ```
 
 Project setup:
@@ -59,19 +65,19 @@ Ubuntu/Debian:
 
 ```sh
 sudo apt update
-sudo apt install -y golang-go ffmpeg imagemagick pandoc
+sudo apt install -y golang-go ffmpeg imagemagick pandoc poppler-utils
 ```
 
 Fedora/RHEL:
 
 ```sh
-sudo dnf install -y golang ffmpeg ImageMagick pandoc
+sudo dnf install -y golang ffmpeg ImageMagick pandoc poppler-utils
 ```
 
 Arch:
 
 ```sh
-sudo pacman -S --noconfirm go ffmpeg imagemagick pandoc
+sudo pacman -S --noconfirm go ffmpeg imagemagick pandoc poppler
 ```
 
 Project setup:
@@ -96,6 +102,7 @@ winget install --silent --accept-source-agreements --accept-package-agreements G
 winget install --silent --accept-source-agreements --accept-package-agreements ffmpeg
 winget install --silent --accept-source-agreements --accept-package-agreements ImageMagick.ImageMagick
 winget install --silent --accept-source-agreements --accept-package-agreements JohnMacFarlane.Pandoc
+winget install --silent --accept-source-agreements --accept-package-agreements oschwartz10612.Poppler
 ```
 
 Project setup:

@@ -19,7 +19,7 @@ Write-Host "OK Go: $(go version)"
 function Install-Engines {
     if (Get-Command choco -ErrorAction SilentlyContinue) {
         Write-Host "==> Installing engines with Chocolatey"
-        choco install -y ffmpeg imagemagick pandoc
+        choco install -y ffmpeg imagemagick pandoc poppler
         return
     }
 
@@ -28,16 +28,17 @@ function Install-Engines {
         winget install --silent --accept-source-agreements --accept-package-agreements ffmpeg
         winget install --silent --accept-source-agreements --accept-package-agreements ImageMagick.ImageMagick
         winget install --silent --accept-source-agreements --accept-package-agreements JohnMacFarlane.Pandoc
+        winget install --silent --accept-source-agreements --accept-package-agreements oschwartz10612.Poppler
         return
     }
 
-    Write-Host "X No supported package manager found (choco or winget). Install ffmpeg, imagemagick, and pandoc manually."
+    Write-Host "X No supported package manager found (choco or winget). Install ffmpeg, imagemagick, pandoc, and pdftotext manually."
 }
 
 if ($Yes) {
     Install-Engines
 } else {
-    $reply = Read-Host "Install FFmpeg, ImageMagick, Pandoc now? [y/N]"
+    $reply = Read-Host "Install FFmpeg, ImageMagick, Pandoc, Poppler now? [y/N]"
     if ($reply -match '^[Yy]$') {
         Install-Engines
     }

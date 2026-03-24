@@ -101,10 +101,9 @@ func TestCanConvert_UnsupportedFormats(t *testing.T) {
 		wantErr     bool
 		wantSuggest bool // Should include a workaround suggestion
 	}{
-		// PDF input is not supported by Pandoc
-		{"input.pdf", "output.docx", true, true},
 		// Same source and dest format
 		{"input.jpg", "output.jpg", true, false},
+		// Same source and dest format
 		// Impossible conversions
 		{"input.json", "output.mp4", true, false},
 	}
@@ -118,5 +117,59 @@ func TestCanConvert_UnsupportedFormats(t *testing.T) {
 		if tt.wantSuggest {
 			assert.NotEmpty(t, suggest, "CanConvert(%q, %q) expected suggestion", tt.src, tt.dst)
 		}
+	}
+}
+
+func TestPlanConversion_DirectPreferred(t *testing.T) {
+	route, err := engine.PlanConversion("input.docx", "output.pdf", "auto")
+	assert.NoError(t, err)
+	assert.Len(t, route.Steps, 1)
+	assert.Equal(t, "pandoc", route.Steps[0].Engine)
+}
+
+func TestPlanConversion_PDFBestEffortRoute(t *testing.T) {
+	route, err := engine.PlanConversion("input.pdf", "output.docx", "auto")
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(route.Steps), 2)
+	assert.Equal(t, "pdftotext", route.Steps[0].Engine)
+	assert.Equal(t, "pdf", route.Steps[0].FromFormat)
+	assert.Equal(t, "txt", route.Steps[0].ToFormat)
+	assert.Equal(t, "pandoc", route.Steps[len(route.Steps)-1].Engine)
+	assert.NotEmpty(t, route.Warnings)
+}
+
+func TestCanEngineConvert_MultiHopForcedEngine(t *testing.T) {
+	ok, err := engine.CanEngineConvert("input.rst", "output.docx", "pandoc")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	ok, err = engine.CanEngineConvert("input.pdf", "output.docx", "pandoc")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestCanEngineConvert(t *testing.T) {
+	tests := []struct {
+		src, dst    string
+		engineName string
+		wantOk      bool
+		wantErr     bool
+	}{
+		{"input.jpg", "output.png", "pandoc", false, false},
+		{"input.jpg", "output.png", "imagemagick", true, false},
+		{"input.json", "output.yaml", "data", true, false},
+		{"input.json", "output.yaml", "ffmpeg", false, false},
+		{"input.jpg", "output.jpg", "ffmpeg", false, true}, // same extension
+		{"input.jpg", "output.png", "unknown", false, true},
+	}
+
+	for _, tt := range tests {
+		ok, err := engine.CanEngineConvert(tt.src, tt.dst, tt.engineName)
+		if tt.wantErr {
+			assert.Error(t, err, "CanEngineConvert(%q, %q, %q) expected error", tt.src, tt.dst, tt.engineName)
+		} else {
+			assert.NoError(t, err, "CanEngineConvert(%q, %q, %q) unexpected error", tt.src, tt.dst, tt.engineName)
+		}
+		assert.Equal(t, tt.wantOk, ok, "CanEngineConvert(%q, %q, %q) ok", tt.src, tt.dst, tt.engineName)
 	}
 }

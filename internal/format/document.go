@@ -27,51 +27,28 @@ func (f *DocumentFormatter) PandocArgs(outputPath string) []string {
 
 	args := []string{}
 
-	// Common formatting for both professional and technical
-	args = append(args, "--standalone") // Produce a complete document (not a fragment)
-	args = append(args, "--toc")        // Table of contents
-	args = append(args, "--number-sections")
-	args = append(args, "--citeproc") // Citation/bibliography support
+	// Keep defaults non-intrusive: preserve source structure and avoid synthetic sections/TOC.
+	args = append(args, "--standalone")
+	args = append(args, "--citeproc")
 
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(outputPath), "."))
 
 	switch f.Style {
 	case "professional":
-		// Professional defaults: serif fonts, proper margins, formal styling
+		// Professional keeps minimal defaults so output reflects source intent.
 		switch ext {
-		case "pdf":
-			// PDF: Times font, xelatex engine for better typography
-			args = append(args, "--pdf-engine=xelatex")
-			args = append(args, "-V", "fontfamily:times")
-			args = append(args, "-V", "geometry:margin=1in")
-			args = append(args, "-V", "linestretch=1.15")
-		case "html":
-			// HTML: responsive styling with good typography
-			args = append(args, "-V", "css=https://cdn.jsdelivr.net/npm/water.css@2.1.1/out/dark.min.css")
-			args = append(args, "-V", "classoption=twocolumn")
-		case "docx":
-			// DOCX: standard margins and spacing
-			args = append(args, "-V", "margin-top=1in")
-			args = append(args, "-V", "margin-bottom=1in")
-			args = append(args, "-V", "margin-left=1in")
-			args = append(args, "-V", "margin-right=1in")
+		case "pdf", "html", "docx", "odt", "md", "tex", "epub", "rst":
+			// No injected layout/theme flags by default.
 		}
 
 	case "technical":
-		// Technical defaults: code clarity, monospace, syntax highlighting
+		// Technical may adjust code rendering but does not inject TOC/numbering/layout.
 		switch ext {
 		case "pdf":
-			// PDF: monospace font for technical content
-			args = append(args, "--pdf-engine=xelatex")
-			args = append(args, "-V", "fontfamily:courier")
-			args = append(args, "-V", "geometry:margin=0.75in")
 			args = append(args, "--highlight-style=tango")
 		case "html":
-			// HTML: code-friendly styling
 			args = append(args, "--highlight-style=tango")
-			args = append(args, "-V", "css=https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/atom-one-dark.min.css")
 		case "docx":
-			// DOCX: monospace code blocks
 			args = append(args, "--highlight-style=tango")
 		}
 	}

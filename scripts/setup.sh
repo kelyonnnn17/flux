@@ -113,28 +113,28 @@ install_engines() {
         Darwin)
             if command -v brew &>/dev/null; then
                 echo "==> Installing engines (macOS Homebrew)..."
-                brew install ffmpeg imagemagick pandoc 2>/dev/null || true
+                brew install ffmpeg imagemagick pandoc poppler 2>/dev/null || true
             else
-                echo "  Install Homebrew and run: brew install ffmpeg imagemagick pandoc"
+                echo "  Install Homebrew and run: brew install ffmpeg imagemagick pandoc poppler"
             fi
             ;;
         Linux)
             if command -v apt-get &>/dev/null; then
                 echo "==> Installing engines (apt)..."
                 sudo apt-get update -qq
-                sudo apt-get install -y ffmpeg imagemagick pandoc 2>/dev/null || true
+                sudo apt-get install -y ffmpeg imagemagick pandoc poppler-utils 2>/dev/null || true
             elif command -v dnf &>/dev/null; then
                 echo "==> Installing engines (dnf)..."
-                sudo dnf install -y ffmpeg ImageMagick pandoc 2>/dev/null || true
+                sudo dnf install -y ffmpeg ImageMagick pandoc poppler-utils 2>/dev/null || true
             elif command -v pacman &>/dev/null; then
                 echo "==> Installing engines (pacman)..."
-                sudo pacman -S --noconfirm ffmpeg imagemagick pandoc 2>/dev/null || true
+                sudo pacman -S --noconfirm ffmpeg imagemagick pandoc poppler 2>/dev/null || true
             else
-                echo "  Install manually: ffmpeg, imagemagick, pandoc"
+                echo "  Install manually: ffmpeg, imagemagick, pandoc, pdftotext (poppler)"
             fi
             ;;
         *)
-            echo "  Install manually: ffmpeg, imagemagick, pandoc"
+            echo "  Install manually: ffmpeg, imagemagick, pandoc, pdftotext (poppler)"
             ;;
     esac
 }
@@ -143,7 +143,7 @@ install_engines() {
 if [[ "$INSTALL_ENGINES" == true ]]; then
     install_engines
 else
-    read -p "Install FFmpeg, ImageMagick, Pandoc? [y/N] " -n 1 -r
+    read -p "Install FFmpeg, ImageMagick, Pandoc, Poppler? [y/N] " -n 1 -r
     echo
     [[ $REPLY =~ ^[Yy]$ ]] && install_engines
 fi

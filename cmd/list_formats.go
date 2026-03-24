@@ -19,10 +19,12 @@ var listFormatsCmd = &cobra.Command{
 					return ui.Result{
 						Meta: []ui.Meta{{Key: "command", Value: "list-formats"}},
 						Lines: []ui.Line{
-							{Kind: "info", Text: "pandoc: pdf, docx, odt, md, tex, epub, html, rst"},
+							{Kind: "info", Text: "pandoc: pdf, docx, odt, md, txt, tex, epub, html, rst"},
 							{Kind: "info", Text: "imagemagick: jpg, png, gif, tiff, bmp, webp, svg"},
 							{Kind: "info", Text: "ffmpeg: mp4, mkv, avi, mov, mp3, wav, webm, m4a, flac, ogg"},
 							{Kind: "info", Text: "data: csv, tsv, json, yaml, toml"},
+							{Kind: "warn", Text: "Best-effort routing may use intermediate formats"},
+							{Kind: "warn", Text: "PDF input uses text extraction first and can lose layout"},
 						},
 						Success: "formats loaded",
 					}, nil
@@ -31,10 +33,12 @@ var listFormatsCmd = &cobra.Command{
 		}
 
 		format.Primary("Supported conversions by engine:")
-		format.Info("  pandoc:     pdf, docx, odt, md, tex, epub, html, rst")
+		format.Info("  pandoc:     pdf, docx, odt, md, txt, tex, epub, html, rst")
 		format.Info("  imagemagick: jpg, png, gif, tiff, bmp, webp, svg")
 		format.Info("  ffmpeg:     mp4, mkv, avi, mov, mp3, wav, webm, m4a, flac, ogg")
 		format.Info("  data:       csv, tsv, json, yaml, toml")
+		format.Info("  note: best-effort routing may use intermediate formats")
+		format.Info("  note: pdf input uses text extraction first and can lose layout")
 		return nil
 	},
 }

@@ -207,15 +207,12 @@ def hello():
 		}
 	}
 
-	// Validate formatter effects: standalone document and TOC should be present.
+	// Validate formatter effects: standalone document should be present.
 	if !strings.Contains(htmlStr, "<html") {
 		t.Error("MD→HTML: missing standalone HTML wrapper (<html>)")
 	}
 	if !strings.Contains(htmlStr, "<body") {
 		t.Error("MD→HTML: missing standalone HTML body (<body>)")
-	}
-	if !strings.Contains(htmlStr, "id=\"TOC\"") && !strings.Contains(htmlStr, "role=\"doc-toc\"") {
-		t.Error("MD→HTML: missing table of contents (TOC)")
 	}
 
 	// Validate content is present

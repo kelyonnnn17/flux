@@ -42,7 +42,7 @@ func init() {
 	convertCmd.Flags().StringVar(&toFlag, "to", "", "Output format (csv|json|yaml|toml); required for pipe")
 	convertCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing files without prompting")
 	convertCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress output; exit code only")
-	convertCmd.Flags().StringVar(&formatStyleFlag, "format-style", "professional", "Apply formatting preset to documents (professional|technical|none)")
+	convertCmd.Flags().StringVar(&formatStyleFlag, "format-style", "professional", "Apply document formatting preset (professional|technical|none); does not auto-generate TOC/section numbering")
 }
 
 func runConvert(c *cobra.Command, args []string) error {
@@ -159,22 +159,30 @@ func runConvertAnimated(in, out string, engineFlag string, formatStyle string) e
 		Command: fmt.Sprintf("flux convert %s %s", in, out),
 		Running: fmt.Sprintf("converting %s", in),
 		Run: func() (ui.Result, error) {
-			if err := convertOneRaw(in, out, engineFlag, formatStyle); err != nil {
+			route, err := convertOneRaw(in, out, engineFlag, formatStyle)
+			if err != nil {
 				return ui.Result{ErrorHint: "check supported formats: flux lf"}, err
 			}
 
 			meta := []ui.Meta{
 				{Key: "from", Value: in},
 				{Key: "to", Value: out},
-				{Key: "engine", Value: engineFlag},
+				{Key: "engine", Value: route.PrimaryEngine()},
+				{Key: "steps", Value: fmt.Sprintf("%d", len(route.Steps))},
 				{Key: "time", Value: time.Since(started).Round(time.Millisecond).String()},
 			}
 			if st, err := os.Stat(out); err == nil {
 				meta = append(meta, ui.Meta{Key: "size", Value: fmt.Sprintf("%d bytes", st.Size())})
 			}
 
+			lines := make([]ui.Line, 0, len(route.Warnings))
+			for _, w := range route.Warnings {
+				lines = append(lines, ui.Line{Kind: "warn", Text: w})
+			}
+
 			return ui.Result{
 				Meta:    meta,
+				Lines:   lines,
 				Success: "OK converted",
 			}, nil
 		},
@@ -182,29 +190,14 @@ func runConvertAnimated(in, out string, engineFlag string, formatStyle string) e
 }
 
 func convertOneWithSpinner(in, out string, engineFlag string, formatStyle string) error {
-	fromFormat := fromFlag
-	if fromFormat == "" {
-		fromFormat = data.FormatFromExt(in)
-	}
-	toFormat := toFlag
-	if toFormat == "" {
-		toFormat = data.FormatFromExt(out)
-	}
-
-	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
-		sp := spinner.New("data ...")
-		sp.Start()
-		defer sp.Stop()
-		return data.Convert(in, out, fromFormat, toFormat)
-	}
-
 	sp := spinner.New(resolveEngineLabel(in, out, engineFlag) + " ...")
 	sp.Start()
 	defer sp.Stop()
-	return convertOneRaw(in, out, engineFlag, formatStyle)
+	_, err := convertOneRaw(in, out, engineFlag, formatStyle)
+	return err
 }
 
-func convertOneRaw(in, out string, engineFlag string, formatStyle string) error {
+func convertOneRaw(in, out string, engineFlag string, formatStyle string) (engine.ConversionRoute, error) {
 	fromFormat := fromFlag
 	if fromFormat == "" {
 		fromFormat = data.FormatFromExt(in)
@@ -214,51 +207,92 @@ func convertOneRaw(in, out string, engineFlag string, formatStyle string) error 
 		toFormat = data.FormatFromExt(out)
 	}
 
+	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(in), "."))
+	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(out), "."))
+
 	// Validate conversion is possible
-	if engineFlag != "data" && !isDataConversion(in, out) {
-		_, workaround, err := engine.CanConvert(in, out)
-		if err != nil {
-			var msg string
-			if workaround != "" {
-				msg = fmt.Sprintf("%v. %s", err, workaround)
-			} else {
-				msg = fmt.Sprintf("%v", err)
+	engineFlag = strings.ToLower(engineFlag)
+	switch engineFlag {
+	case "auto":
+		if !isDataConversion(in, out) {
+			_, workaround, err := engine.CanConvert(in, out)
+			if err != nil {
+				var msg string
+				if workaround != "" {
+					msg = fmt.Sprintf("%v. %s", err, workaround)
+				} else {
+					msg = fmt.Sprintf("%v", err)
+				}
+				return engine.ConversionRoute{}, errors.New(msg)
 			}
-			return errors.New(msg)
 		}
+	case "data", "ffmpeg", "imagemagick", "pandoc":
+		ok, err := engine.CanEngineConvert(in, out, engineFlag)
+		if err != nil {
+			return engine.ConversionRoute{}, err
+		}
+		if !ok {
+			bestEngine, workaround, canErr := engine.CanConvert(in, out)
+			if canErr != nil {
+				var msg string
+				if workaround != "" {
+					msg = fmt.Sprintf("%v. %s", canErr, workaround)
+				} else {
+					msg = fmt.Sprintf("%v", canErr)
+				}
+				return engine.ConversionRoute{}, errors.New(msg)
+			}
+			if bestEngine == "" {
+				bestEngine = "auto"
+			}
+			return engine.ConversionRoute{}, fmt.Errorf("engine %s cannot convert %s -> %s end-to-end; try --engine %s or --engine auto", engineFlag, srcExt, dstExt, bestEngine)
+		}
+	default:
+		return engine.ConversionRoute{}, fmt.Errorf("unknown engine: %s", engineFlag)
 	}
 
 	if engineFlag == "data" || (engineFlag == "auto" && isDataConversion(in, out)) {
-		return data.Convert(in, out, fromFormat, toFormat)
+		return engine.ConversionRoute{Steps: []engine.RouteStep{{
+			Engine:     "data",
+			FromFormat: fromFormat,
+			ToFormat:   toFormat,
+			Cost:       1,
+		}}}, data.Convert(in, out, fromFormat, toFormat)
 	}
+
+	route, err := engine.PlanConversion(in, out, engineFlag)
+	if err != nil {
+		if engineFlag != "auto" {
+			return engine.ConversionRoute{}, fmt.Errorf("engine %s cannot perform route %s -> %s; try --engine auto", engineFlag, srcExt, dstExt)
+		}
+		return engine.ConversionRoute{}, err
+	}
+
 	factory := engine.NewFactory(engine.NewDefaultRunner())
-	var eng engine.Engine
-	var err error
-	var selectedEngine string
-	if engineFlag == "auto" {
-		preferred := engine.RouteByFormat(in, out)
-		eng, err = factory.AutoEngine(preferred)
-		if err != nil {
-			return err
+	if len(route.Warnings) > 0 && !quietFlag && !useConvertUI(out) {
+		for _, w := range route.Warnings {
+			format.Info("Warning: %s", w)
 		}
-		selectedEngine = engineNameFromAdapter(eng)
-	} else {
-		eng, err = factory.GetEngine(engineFlag)
-		if err != nil {
-			return err
-		}
-		selectedEngine = engineFlag
 	}
 
-	// Build args with formatter if applicable (Pandoc engine only)
-	args := []string{}
-	outExt := filepath.Ext(out)
-	if selectedEngine == "pandoc" && format.IsDocumentFormat(outExt) {
+	err = engine.ExecuteRoute(route, in, out, factory, func(step engine.RouteStep, isFinal bool) []string {
+		if step.Engine != "pandoc" {
+			return nil
+		}
+		if !isFinal {
+			return nil
+		}
+		if !format.IsDocumentFormat("." + step.ToFormat) {
+			return nil
+		}
 		formatter := format.NewDocumentFormatter(formatStyle)
-		args = formatter.PandocArgs(out)
+		return formatter.PandocArgs(out)
+	})
+	if err != nil {
+		return engine.ConversionRoute{}, err
 	}
 
-	return eng.Convert(in, out, args)
+	return route, nil
 }
 
 func engineNameFromAdapter(eng engine.Engine) string {

@@ -7,6 +7,8 @@ Flux is a cross-platform converter for documents, images, audio/video, and struc
 - Audio/Video: FFmpeg
 - Data (CSV/JSON/YAML/TOML): built-in Go engine
 
+Document conversion now uses best-effort route planning. Direct conversion is preferred, but Flux can use intermediate formats when needed.
+
 ## Quick Start (CLI)
 
 ### Global Install (like pip)
@@ -119,7 +121,24 @@ flux convert -i audio.mp3 -o audio.wav --engine ffmpeg
 flux convert -i data.json -o data.csv --engine data
 ```
 
+If you force an engine with `--engine`, Flux requires that engine to handle the full route. If it cannot, Flux fails with an actionable message and suggests `--engine auto`.
+
+## Document Routing Notes
+
+Flux supports best-effort document routing, including multi-step paths such as:
+
+```sh
+flux convert -i report.rst -o report.docx
+flux convert -i notes.docx -o notes.pdf
+```
+
+PDF input is best-effort and starts with text extraction (`pdftotext`) before document conversion. This can lose layout, images, or advanced formatting from the source PDF.
+
 Document formatting presets:
+
+- Flux preserves source document structure by default.
+- Flux does not auto-generate table of contents or section numbering.
+- Use presets only for light rendering preferences, not structural injection.
 
 ```sh
 flux convert -i notes.md -o notes.html --engine pandoc --format-style professional
@@ -182,6 +201,9 @@ func main() {
 ```
 
 Note: auto-install still depends on OS package-manager permissions (for example `sudo` on Linux or admin shell on Windows).
+
+
+
 
 ## Terminal UX
 

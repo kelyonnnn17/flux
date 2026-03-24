@@ -17,14 +17,14 @@ func TestDocumentFormatter_PandocArgs(t *testing.T) {
 			name:     "professional html",
 			style:    "professional",
 			output:   "output.html",
-			contains: []string{"--standalone", "--toc", "--number-sections", "--citeproc"},
+			contains: []string{"--standalone", "--citeproc"},
 			notEmpty: true,
 		},
 		{
 			name:     "professional pdf",
 			style:    "professional",
 			output:   "output.pdf",
-			contains: []string{"--standalone", "--pdf-engine=xelatex", "fontfamily:times"},
+			contains: []string{"--standalone", "--citeproc"},
 			notEmpty: true,
 		},
 		{
@@ -45,7 +45,7 @@ func TestDocumentFormatter_PandocArgs(t *testing.T) {
 			name:     "default style",
 			style:    "",
 			output:   "output.html",
-			contains: []string{"--standalone", "--toc"},
+			contains: []string{"--standalone", "--citeproc"},
 			notEmpty: true,
 		},
 	}
@@ -67,6 +67,13 @@ func TestDocumentFormatter_PandocArgs(t *testing.T) {
 				if !strings.Contains(argsStr, want) {
 					t.Errorf("expected args to contain %q, got %v", want, args)
 				}
+			}
+
+			if strings.Contains(argsStr, "--toc") {
+				t.Errorf("did not expect auto TOC args, got %v", args)
+			}
+			if strings.Contains(argsStr, "--number-sections") {
+				t.Errorf("did not expect auto section numbering args, got %v", args)
 			}
 		})
 	}
