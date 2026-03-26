@@ -31,7 +31,7 @@ func (r ConversionRoute) PrimaryEngine() string {
 	}
 	eng := r.Steps[0].Engine
 	switch eng {
-	case "pandoc", "imagemagick", "ffmpeg", "data":
+	case "pdf2docx", "docx2pdf", "pandoc", "imagemagick", "ffmpeg", "data":
 		return eng
 	default:
 		return "auto"
@@ -53,6 +53,8 @@ type plannerEdge struct {
 
 var engineBaseCost = map[string]int{
 	"data":        1,
+	"pdf2docx":    1,
+	"docx2pdf":    1,
 	"pandoc":      2,
 	"ffmpeg":      2,
 	"imagemagick": 3,
@@ -61,10 +63,12 @@ var engineBaseCost = map[string]int{
 
 var engineOrder = map[string]int{
 	"data":        0,
-	"pandoc":      1,
-	"imagemagick": 2,
-	"ffmpeg":      3,
-	"pdftotext":   4,
+	"pdf2docx":    1,
+	"docx2pdf":    2,
+	"pandoc":      3,
+	"imagemagick": 4,
+	"ffmpeg":      5,
+	"pdftotext":   6,
 }
 
 func normalizeFormat(pathOrFormat string) string {
@@ -130,6 +134,10 @@ func defaultFidelityNote(engineName string) string {
 	switch engineName {
 	case "data":
 		return "structured transformation"
+	case "pdf2docx":
+		return "direct PDF to DOCX conversion"
+	case "docx2pdf":
+		return "direct DOCX to PDF conversion"
 	case "pandoc":
 		return "document conversion"
 	case "imagemagick":
@@ -189,6 +197,15 @@ func PlanConversion(src, dst, forcedEngine string) (ConversionRoute, error) {
 			if e.Engine == forcedEngine {
 				filtered = append(filtered, e)
 			}
+		}
+		edges = filtered
+	} else {
+		filtered := make([]plannerEdge, 0, len(edges))
+		for _, e := range edges {
+			if (e.Engine == "pdf2docx" || e.Engine == "docx2pdf") && !binaryExists(e.Engine) {
+				continue
+			}
+			filtered = append(filtered, e)
 		}
 		edges = filtered
 	}

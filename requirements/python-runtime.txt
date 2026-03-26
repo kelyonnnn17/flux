@@ -1,0 +1,3 @@
+pdf2docx>=0.5.8
+# docx2pdf 0.1.8 is currently the latest widely available stable release.
+docx2pdf>=0.1.8

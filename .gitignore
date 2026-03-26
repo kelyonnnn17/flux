@@ -2,6 +2,7 @@ CLAUDE.md
 docs/private/
 /vendor/
 /bin/
+flux
 *.exe
 *.log
 *.out
@@ -15,4 +16,41 @@ coverage.html
 *.swo
 .env
 .env.local
+.env.*
+.envrc
+.direnv/
 python/
+.venv/
+.venv*/
+__pycache__/
+
+# OS and editor noise
+.AppleDouble
+.LSOverride
+Thumbs.db
+*.tmp
+
+# Python artifacts
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Local test and scratch folders
+tmp/
+temp/
+.cache/
+
+# Sensitive files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.kdbx
+secrets*.json
+credentials*.json

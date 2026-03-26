@@ -15,11 +15,23 @@ type EngineInfo struct {
 // Doctor returns status of all engines.
 func Doctor() []EngineInfo {
 	var out []EngineInfo
-	for _, name := range []string{"ffmpeg", "imagemagick", "pandoc", "pdftotext", "data"} {
+	for _, name := range []string{"ffmpeg", "imagemagick", "pandoc", "pdf2docx", "docx2pdf", "pdftotext", "data"} {
 		info := EngineInfo{Name: name}
 		if name == "data" {
 			info.Path = "built-in"
 			info.Version = "go"
+			out = append(out, info)
+			continue
+		}
+		if name == "pdf2docx" || name == "docx2pdf" {
+			py, err := resolvePythonExecutable()
+			if err != nil || !pythonModuleAvailable(name) {
+				info.Path = "not found"
+				out = append(out, info)
+				continue
+			}
+			info.Path = py + " (python module)"
+			info.Version = getPythonModuleVersion(py, name)
 			out = append(out, info)
 			continue
 		}
@@ -42,6 +54,15 @@ func Doctor() []EngineInfo {
 		out = append(out, info)
 	}
 	return out
+}
+
+func getPythonModuleVersion(pythonPath, module string) string {
+	cmd := exec.Command(pythonPath, "-c", "import "+module+" as m; print(getattr(m, '__version__', '?'))")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "?"
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func getVersion(name, path string) string {

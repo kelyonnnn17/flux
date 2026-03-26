@@ -2,10 +2,11 @@ package engine_test
 
 import (
 	"context"
-	"github.com/kelyonnnn17/flux/internal/engine"
-	"github.com/stretchr/testify/assert"
 	"os/exec"
 	"testing"
+
+	"github.com/kelyonnnn17/flux/internal/engine"
+	"github.com/stretchr/testify/assert"
 )
 
 type stubRunner struct {
@@ -45,12 +46,20 @@ func TestPandocAdapter(t *testing.T) {
 	assert.Equal(t, "pandoc", r.lastCmd)
 }
 
+func TestPythonPDFAdapter_UnknownMode(t *testing.T) {
+	a := &engine.PythonPDFAdapter{Runner: &stubRunner{}, Mode: "unknown"}
+	err := a.Convert("in", "out", nil)
+	assert.Error(t, err)
+}
+
 func TestRouteByFormat(t *testing.T) {
 	tests := []struct {
 		src, dst  string
 		wantFirst string
 	}{
 		{"doc.pdf", "doc.html", "pandoc"},
+		{"doc.pdf", "doc.docx", "pdf2docx"},
+		{"doc.docx", "doc.pdf", "docx2pdf"},
 		{"slide.md", "slide.pdf", "pandoc"},
 		{"photo.jpg", "photo.png", "imagemagick"},
 		{"img.PNG", "img.webp", "imagemagick"},
@@ -124,18 +133,33 @@ func TestPlanConversion_DirectPreferred(t *testing.T) {
 	route, err := engine.PlanConversion("input.docx", "output.pdf", "auto")
 	assert.NoError(t, err)
 	assert.Len(t, route.Steps, 1)
-	assert.Equal(t, "pandoc", route.Steps[0].Engine)
+	assert.Contains(t, []string{"docx2pdf", "pandoc"}, route.Steps[0].Engine)
 }
 
 func TestPlanConversion_PDFBestEffortRoute(t *testing.T) {
 	route, err := engine.PlanConversion("input.pdf", "output.docx", "auto")
 	assert.NoError(t, err)
+	assert.NotEmpty(t, route.Steps)
+	if route.Steps[0].Engine == "pdf2docx" {
+		assert.Len(t, route.Steps, 1)
+		assert.Equal(t, "pdf", route.Steps[0].FromFormat)
+		assert.Equal(t, "docx", route.Steps[0].ToFormat)
+		assert.Empty(t, route.Warnings)
+		return
+	}
+
 	assert.GreaterOrEqual(t, len(route.Steps), 2)
 	assert.Equal(t, "pdftotext", route.Steps[0].Engine)
 	assert.Equal(t, "pdf", route.Steps[0].FromFormat)
 	assert.Equal(t, "txt", route.Steps[0].ToFormat)
 	assert.Equal(t, "pandoc", route.Steps[len(route.Steps)-1].Engine)
 	assert.NotEmpty(t, route.Warnings)
+}
+
+func TestPlanConversion_PDFBestEffortRoute_ForcedPandoc(t *testing.T) {
+	route, err := engine.PlanConversion("input.pdf", "output.docx", "pandoc")
+	assert.Error(t, err)
+	assert.Empty(t, route.Steps)
 }
 
 func TestCanEngineConvert_MultiHopForcedEngine(t *testing.T) {
@@ -150,10 +174,10 @@ func TestCanEngineConvert_MultiHopForcedEngine(t *testing.T) {
 
 func TestCanEngineConvert(t *testing.T) {
 	tests := []struct {
-		src, dst    string
+		src, dst   string
 		engineName string
-		wantOk      bool
-		wantErr     bool
+		wantOk     bool
+		wantErr    bool
 	}{
 		{"input.jpg", "output.png", "pandoc", false, false},
 		{"input.jpg", "output.png", "imagemagick", true, false},

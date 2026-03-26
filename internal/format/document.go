@@ -1,17 +1,18 @@
 package format
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
 
 // DocumentFormatter applies sensible formatting defaults to document conversions.
 type DocumentFormatter struct {
-	Style string // "professional", "technical", or "none"
+	Style string // "professional", "technical", "developer", or "none"
 }
 
 // NewDocumentFormatter creates a formatter with the given style preset.
-// Style can be "professional", "technical", or "none" (no formatting).
+// Style can be "professional", "technical", "developer", or "none" (no formatting).
 func NewDocumentFormatter(style string) *DocumentFormatter {
 	if style == "" {
 		style = "professional" // default
@@ -21,35 +22,75 @@ func NewDocumentFormatter(style string) *DocumentFormatter {
 
 // PandocArgs returns Pandoc CLI arguments based on the formatter style and output format.
 func (f *DocumentFormatter) PandocArgs(outputPath string) []string {
-	if f.Style == "none" {
-		return []string{}
-	}
+	return f.PandocArgsWithContext("", outputPath, "")
+}
+
+// PandocArgsWithContext returns Pandoc CLI arguments based on style and paths.
+// For DOCX output, it can attach a reference DOCX to preserve styles.
+func (f *DocumentFormatter) PandocArgsWithContext(inputPath, outputPath, referenceDocPath string) []string {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(outputPath), "."))
+	inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(inputPath), "."))
 
 	args := []string{}
 
-	// Keep defaults non-intrusive: preserve source structure and avoid synthetic sections/TOC.
-	args = append(args, "--standalone")
-	args = append(args, "--citeproc")
+	if f.Style != "none" {
+		// Keep defaults non-intrusive: preserve source structure and avoid synthetic sections/TOC.
+		args = append(args, "--standalone")
+		args = append(args, "--citeproc")
 
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(outputPath), "."))
+		switch f.Style {
+		case "professional":
+			// Professional keeps minimal defaults so output reflects source intent.
+			switch ext {
+			case "pdf", "html", "docx", "odt", "md", "tex", "epub", "rst":
+				// No injected layout/theme flags by default.
+			}
 
-	switch f.Style {
-	case "professional":
-		// Professional keeps minimal defaults so output reflects source intent.
-		switch ext {
-		case "pdf", "html", "docx", "odt", "md", "tex", "epub", "rst":
-			// No injected layout/theme flags by default.
+		case "technical":
+			// Technical may adjust code rendering but does not inject TOC/numbering/layout.
+			switch ext {
+			case "pdf", "html", "docx":
+				args = append(args, "--highlight-style=tango")
+			}
+
+		case "developer":
+			// Developer preset optimizes readability of markdown docs with code and tables.
+			switch ext {
+			case "pdf":
+				args = append(args,
+					"--highlight-style=zenburn",
+					"--variable=geometry:margin=1in",
+					"--variable=fontsize:11pt",
+					"--variable=linestretch:1.2",
+				)
+			case "docx":
+				args = append(args,
+					"--highlight-style=zenburn",
+					"--metadata=title:Developer Document",
+				)
+			case "html":
+				args = append(args, "--highlight-style=zenburn")
+			}
+
+			if inputExt == "md" || inputExt == "markdown" {
+				args = append(args, "--wrap=preserve")
+			}
+		}
+	}
+
+	if ext == "docx" {
+		refDoc := strings.TrimSpace(referenceDocPath)
+		if refDoc == "" {
+			inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(inputPath), "."))
+			if inputExt == "docx" {
+				refDoc = inputPath
+			}
 		}
 
-	case "technical":
-		// Technical may adjust code rendering but does not inject TOC/numbering/layout.
-		switch ext {
-		case "pdf":
-			args = append(args, "--highlight-style=tango")
-		case "html":
-			args = append(args, "--highlight-style=tango")
-		case "docx":
-			args = append(args, "--highlight-style=tango")
+		if refDoc != "" {
+			if st, err := os.Stat(refDoc); err == nil && !st.IsDir() {
+				args = append(args, "--reference-doc="+refDoc)
+			}
 		}
 	}
 

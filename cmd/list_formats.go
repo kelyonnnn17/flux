@@ -19,12 +19,14 @@ var listFormatsCmd = &cobra.Command{
 					return ui.Result{
 						Meta: []ui.Meta{{Key: "command", Value: "list-formats"}},
 						Lines: []ui.Line{
+							{Kind: "info", Text: "pdf2docx (python): pdf -> docx"},
+							{Kind: "info", Text: "docx2pdf (python): docx -> pdf"},
 							{Kind: "info", Text: "pandoc: pdf, docx, odt, md, txt, tex, epub, html, rst"},
 							{Kind: "info", Text: "imagemagick: jpg, png, gif, tiff, bmp, webp, svg"},
 							{Kind: "info", Text: "ffmpeg: mp4, mkv, avi, mov, mp3, wav, webm, m4a, flac, ogg"},
 							{Kind: "info", Text: "data: csv, tsv, json, yaml, toml"},
 							{Kind: "warn", Text: "Best-effort routing may use intermediate formats"},
-							{Kind: "warn", Text: "PDF input uses text extraction first and can lose layout"},
+							{Kind: "warn", Text: "If python modules are missing, PDF input may fall back to text extraction and lose layout"},
 						},
 						Success: "formats loaded",
 					}, nil
@@ -33,12 +35,14 @@ var listFormatsCmd = &cobra.Command{
 		}
 
 		format.Primary("Supported conversions by engine:")
+		format.Info("  pdf2docx:   pdf -> docx (python module)")
+		format.Info("  docx2pdf:   docx -> pdf (python module)")
 		format.Info("  pandoc:     pdf, docx, odt, md, txt, tex, epub, html, rst")
 		format.Info("  imagemagick: jpg, png, gif, tiff, bmp, webp, svg")
 		format.Info("  ffmpeg:     mp4, mkv, avi, mov, mp3, wav, webm, m4a, flac, ogg")
 		format.Info("  data:       csv, tsv, json, yaml, toml")
 		format.Info("  note: best-effort routing may use intermediate formats")
-		format.Info("  note: pdf input uses text extraction first and can lose layout")
+		format.Info("  note: if python modules are missing, pdf input may use text extraction and lose layout")
 		return nil
 	},
 }

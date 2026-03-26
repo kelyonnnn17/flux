@@ -29,6 +29,13 @@ func TestConvert_ExplicitEngineValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--engine auto")
 	})
+
+	t.Run("auto pdf to docx requires python adapter", func(t *testing.T) {
+		err := Convert("input.pdf", "output.docx", ConvertOptions{Engine: "auto"})
+		if err != nil {
+			assert.Contains(t, err.Error(), "pdf2docx")
+		}
+	})
 }
 
 func TestConvert_DataEngine_Succeeds(t *testing.T) {
@@ -46,4 +53,3 @@ func TestConvert_DataEngine_Succeeds(t *testing.T) {
 	assert.Contains(t, string(out), "a:")
 	assert.Contains(t, string(out), "b:")
 }
-

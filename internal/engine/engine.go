@@ -11,6 +11,12 @@ import (
 var (
 	// engineInputFormats maps engine names to formats they can READ (input)
 	engineInputFormats = map[string]map[string]bool{
+		"pdf2docx": {
+			"pdf": true,
+		},
+		"docx2pdf": {
+			"docx": true,
+		},
 		"pandoc": {
 			"pdf":  false, // PDF input NOT supported
 			"docx": true, "odt": true, "md": true, "txt": true, "tex": true,
@@ -31,6 +37,12 @@ var (
 
 	// engineOutputFormats maps engine names to formats they can WRITE (output)
 	engineOutputFormats = map[string]map[string]bool{
+		"pdf2docx": {
+			"docx": true,
+		},
+		"docx2pdf": {
+			"pdf": true,
+		},
 		"pandoc": {
 			"pdf": true, "docx": true, "odt": true, "md": true, "txt": true, "tex": true,
 			"epub": true, "html": true, "rst": true,
@@ -65,6 +77,10 @@ func NewFactory(runner CmdRunner) *EngineFactory {
 // GetEngine returns an Engine implementation based on the name.
 func (f *EngineFactory) GetEngine(name string) (Engine, error) {
 	switch name {
+	case "pdf2docx":
+		return &PythonPDFAdapter{Runner: f.runner, Mode: "pdf2docx"}, nil
+	case "docx2pdf":
+		return &PythonPDFAdapter{Runner: f.runner, Mode: "docx2pdf"}, nil
 	case "ffmpeg":
 		return &FFmpegAdapter{Runner: f.runner}, nil
 	case "imagemagick":
@@ -94,6 +110,12 @@ func (f *EngineFactory) AutoEngine(preferred []string) (Engine, error) {
 func RouteByFormat(src, dst string) []string {
 	srcExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
 	dstExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(dst), "."))
+	if srcExt == "pdf" && dstExt == "docx" {
+		return []string{"pdf2docx", "pandoc", "imagemagick", "ffmpeg"}
+	}
+	if srcExt == "docx" && dstExt == "pdf" {
+		return []string{"docx2pdf", "pandoc", "imagemagick", "ffmpeg"}
+	}
 	if isDataExt(srcExt) && isDataExt(dstExt) {
 		return []string{"data", "ffmpeg", "imagemagick", "pandoc"}
 	}
@@ -129,6 +151,10 @@ func binaryExists(name string) bool {
 		if _, err := exec.LookPath(name); err == nil {
 			return true
 		}
+	case "pdf2docx":
+		return pythonModuleAvailable("pdf2docx")
+	case "docx2pdf":
+		return pythonModuleAvailable("docx2pdf")
 	case "pdftotext":
 		if _, err := exec.LookPath("pdftotext"); err == nil {
 			return true
@@ -189,7 +215,7 @@ func suggestAlternative(srcExt, dstExt string) string {
 	}
 
 	// Check what output format the target engine supports
-	for _, engineName := range []string{"pandoc", "imagemagick", "ffmpeg", "data"} {
+	for _, engineName := range []string{"pdf2docx", "docx2pdf", "pandoc", "imagemagick", "ffmpeg", "data"} {
 		outputs := engineOutputFormats[engineName]
 		if outputs[dstExt] {
 			// Find a common intermediate format

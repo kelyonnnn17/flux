@@ -6,3 +6,38 @@ bin
 .dockerignore
 coverage.out
 *.test
+
+# Local environments and caches
+.venv
+.venv*
+__pycache__
+.cache
+tmp
+temp
+
+# Developer/editor files
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo
+
+# Project docs and local scripts not needed for image build
+docs/private
+scripts
+python
+tests
+
+# Secrets and local config
+.env
+.env.local
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+secrets*.json
+credentials*.json

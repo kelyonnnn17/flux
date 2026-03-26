@@ -16,13 +16,16 @@ Flux can run with one or more external engines plus its built-in data engine.
 | FFmpeg | `ffmpeg` | Audio/video conversion |
 | ImageMagick | `magick` or `convert` | Image conversion |
 | Pandoc | `pandoc` | Document conversion |
+| PDF to DOCX (python) | `pdf2docx` module | High-fidelity `pdf -> docx` |
+| DOCX to PDF (python) | `docx2pdf` module | High-fidelity `docx -> pdf` |
 | PDF text extraction | `pdftotext` | Best-effort PDF input conversion |
 | Data | built-in | CSV/JSON/YAML/TOML conversion |
 
 Notes:
 1. Flux prefers direct conversions, then best-effort multi-step routes.
 2. `--engine <name>` is strict and must support the full route.
-3. PDF input is extracted to text first and may lose visual fidelity.
+3. Flux prefers `pdf2docx`/`docx2pdf` for direct PDF<->DOCX conversion.
+4. If python modules are missing, PDF input can fall back to text extraction and may lose visual fidelity.
 
 ## Platform Setup
 
@@ -153,6 +156,8 @@ CLI verification:
 
 ```sh
 go version
+make bootstrap
+make bootstrap-check
 make build
 make install
 flux --help

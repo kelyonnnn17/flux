@@ -1,19 +1,56 @@
-# Flux Universal File Converter
+# Flux
 
-Flux is a cross-platform converter for documents, images, audio/video, and structured data.
+Flux is a cross-platform CLI for converting files across formats with a practical engine-first pipeline:
 
 - Documents: Pandoc
 - Images: ImageMagick
 - Audio/Video: FFmpeg
-- Data (CSV/JSON/YAML/TOML): built-in Go engine
+- Structured data (CSV/JSON/YAML/TOML): native Go engine
+- High-fidelity PDF/DOCX: Python adapters (`pdf2docx`, `docx2pdf`)
 
-Document conversion now uses best-effort route planning. Direct conversion is preferred, but Flux can use intermediate formats when needed.
+Flux is designed for developer workflows: simple commands, predictable output, and explicit fallback behavior.
 
-## Quick Start (CLI)
+## Features
 
-### Global Install (like pip)
+- One-command setup on macOS/Linux and Windows
+- Global install option (`go install`)
+- Smart route planning (`--engine auto`) with direct conversions preferred
+- Explicit engine forcing (`--engine pandoc`, `--engine ffmpeg`, etc.)
+- Batch conversion and glob support
+- Stdin/stdout pipe support for data workflows
+- DOCX style preservation via `--reference-doc`
+- Developer-friendly markdown formatting profile (`--format-style developer`)
+- Built-in diagnostics via `flux doctor`
+- Public Go library package at `pkg/flux`
 
-Use this when you want `flux` available from any directory after one install command.
+## Quick Start
+
+### Option A: One-command local setup (recommended)
+
+macOS/Linux:
+
+```sh
+make setup
+flux --help
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -Yes
+flux --help
+```
+
+Setup performs:
+
+1. Runtime dependency install (non-interactive)
+2. Python `.venv` bootstrap
+3. Python module install (`pdf2docx`, `docx2pdf`)
+4. `FLUX_PYTHON` persistence
+5. Build + install
+6. Health verification with `flux doctor`
+
+### Option B: Global install (Go toolchain path)
 
 macOS/Linux:
 
@@ -27,33 +64,131 @@ Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\scripts\install-go.ps1
 ```
 
-This installs via `go install github.com/kelyonnnn17/flux@latest` and updates your user PATH to include Go's binary directory if needed.
+This installs `github.com/kelyonnnn17/flux` via `go install` and updates user PATH if required.
 
-### macOS and Linux
+## Core Commands
+
+- `flux convert` - convert files
+- `flux doctor` - check engine availability and versions
+- `flux list-formats` - show format support by engine
+- `flux info <file>` - inspect file metadata
+
+Aliases:
+
+- `flux c` -> `flux convert`
+- `flux d` -> `flux doctor`
+- `flux lf` -> `flux list-formats`
+- `flux i` -> `flux info`
+
+## Usage
+
+### Short syntax
 
 ```sh
-./scripts/setup.sh
-./scripts/setup.sh -y
-make setup
-flux --help
+flux input.jpg png
+flux docs/guide.md pdf
+flux media/clip.mov mp4
 ```
 
-### Windows (PowerShell)
+### Explicit syntax
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -Yes
-flux --help
+```sh
+flux convert input.jpg png
+flux convert notes.md pdf
+flux convert input.mp4 webm
 ```
 
-What setup does:
+### Data conversion
 
-1. Installs runtime engines (optional prompt or forced with `-y` / `-Yes`)
-2. Builds Flux
-3. Installs Flux into a PATH location
-4. Runs verification (`flux doctor`)
+```sh
+flux convert -i data.json -o data.yaml
+flux convert -i sheet.csv -o sheet.json
+flux convert -i config.toml -o config.yaml --from toml --to yaml
+```
 
-If you already have Go and only need a global install, prefer the `install-go` scripts above.
+### Batch conversion
+
+```sh
+flux convert -i a.jpg b.jpg c.jpg -o png
+flux convert -i *.json -o yaml --force
+```
+
+### Pipe support (stdin/stdout)
+
+```sh
+cat file.json | flux convert -o - --from json --to yaml > out.yaml
+```
+
+## Engine Selection
+
+Default behavior uses route planning:
+
+```sh
+flux convert -i input.docx -o output.pdf --engine auto
+```
+
+Force a specific engine:
+
+```sh
+flux convert -i file.pdf -o file.docx --engine pdf2docx
+flux convert -i file.docx -o file.pdf --engine docx2pdf
+flux convert -i file.md -o file.pdf --engine pandoc
+flux convert -i file.png -o file.jpg --engine imagemagick
+flux convert -i file.mp4 -o file.webm --engine ffmpeg
+flux convert -i file.json -o file.csv --engine data
+```
+
+Important behavior:
+
+- `--engine auto` prefers direct, high-fidelity routes.
+- Forced engines are strict. If forced engine cannot complete the route, Flux returns an actionable error.
+- `pdf -> docx` in auto mode expects Python adapter availability for best fidelity.
+- `docx -> pdf` in auto mode prefers `docx2pdf` and can fallback when runtime issues occur.
+
+## PDF <-> DOCX Pipeline
+
+Flux prioritizes Python adapters for document fidelity:
+
+- `pdf2docx` for `pdf -> docx`
+- `docx2pdf` for `docx -> pdf`
+
+If modules are missing, fallback paths can be used in some cases, but may lose layout fidelity for complex PDFs.
+
+Install modules manually (if needed):
+
+```sh
+pip install pdf2docx docx2pdf
+```
+
+## Document Formatting
+
+Flux preserves source structure by default and avoids synthetic section generation.
+
+### Style presets
+
+- `professional` (default)
+- `technical`
+- `developer`
+- `none`
+
+Examples:
+
+```sh
+flux convert -i notes.md -o notes.pdf --engine pandoc --format-style professional
+flux convert -i notes.md -o notes.pdf --engine pandoc --format-style technical
+flux convert -i notes.md -o notes.pdf --engine pandoc --format-style developer
+flux convert -i notes.md -o notes.html --engine pandoc --format-style none
+```
+
+### DOCX style preservation and templates
+
+Use DOCX templates for consistent Word styling:
+
+```sh
+flux convert -i notes.md -o notes.docx --reference-doc template.docx --format-style professional
+```
+
+If input and output are both DOCX, Flux can reuse input styling as reference automatically.
 
 ## Build and Install
 
@@ -62,115 +197,51 @@ make build
 make install
 ```
 
-Install path defaults:
+Default install targets:
 
 1. Apple Silicon macOS: `/opt/homebrew/bin`
 2. Other systems: `/usr/local/bin`
 
-Override install directory:
+Override destination:
 
 ```sh
 make install BINDIR=$HOME/.local/bin
 ```
 
-## Usage
+## Developer Setup
 
-Shortest syntax:
-
-```sh
-flux input.jpg png
-flux docs/guide.md pdf
-flux media/clip.mov mp4
-```
-
-Explicit command syntax:
+Python runtime bootstrap helpers:
 
 ```sh
-flux convert input.jpg png
-flux convert document.md pdf
-flux convert video.mp4 mkv
+make bootstrap
+make bootstrap-check
+make dev-ready
 ```
 
-Data conversion:
+`make install` enforces bootstrap checks so local installs remain conversion-ready.
+
+## Terminal UX
+
+- Disable animated UI: `--no-ui`
+- Disable ANSI colors: `--no-color` or `NO_COLOR=1`
+
+Examples:
 
 ```sh
-flux convert -i data.json -o data.yaml
-flux convert -i sheet.csv -o sheet.json
-flux convert -i config.toml -o config.yaml --from toml --to yaml
+flux doctor
+flux --no-ui doctor
+NO_COLOR=1 flux doctor
 ```
 
-Batch conversion:
+## Go Library
 
-```sh
-flux convert -i a.jpg b.jpg c.jpg -o png
-flux convert -i *.json -o yaml --force
-```
-
-Pipe/stdin:
-
-```sh
-cat file.json | flux convert -o - --from json --to yaml > out.yaml
-```
-
-Engine override:
-
-```sh
-flux convert -i file.pdf -o file.html --engine pandoc
-flux convert -i image.png -o image.jpg --engine imagemagick
-flux convert -i audio.mp3 -o audio.wav --engine ffmpeg
-flux convert -i data.json -o data.csv --engine data
-```
-
-If you force an engine with `--engine`, Flux requires that engine to handle the full route. If it cannot, Flux fails with an actionable message and suggests `--engine auto`.
-
-## Document Routing Notes
-
-Flux supports best-effort document routing, including multi-step paths such as:
-
-```sh
-flux convert -i report.rst -o report.docx
-flux convert -i notes.docx -o notes.pdf
-```
-
-PDF input is best-effort and starts with text extraction (`pdftotext`) before document conversion. This can lose layout, images, or advanced formatting from the source PDF.
-
-Document formatting presets:
-
-- Flux preserves source document structure by default.
-- Flux does not auto-generate table of contents or section numbering.
-- Use presets only for light rendering preferences, not structural injection.
-
-```sh
-flux convert -i notes.md -o notes.html --engine pandoc --format-style professional
-flux convert -i notes.md -o notes.pdf --engine pandoc --format-style technical
-flux convert -i notes.md -o notes.html --engine pandoc --format-style none
-```
-
-## Commands
-
-1. `flux convert` - Convert files
-2. `flux doctor` - Check engine availability and versions
-3. `flux list-formats` - Show format coverage per engine
-4. `flux info <file>` - Inspect metadata
-
-Aliases:
-
-```sh
-flux c file.md pdf
-flux d
-flux lf
-flux i file.pdf
-```
-
-## Use as a Go Library
-
-Flux now exposes a public library package:
+Install:
 
 ```sh
 go get github.com/kelyonnnn17/flux/pkg/flux
 ```
 
-Library example with auto dependency installation:
+Example:
 
 ```go
 package main
@@ -185,7 +256,6 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Try to auto-install missing runtime engines using brew/apt/dnf/pacman/choco/winget.
 	if _, err := fluxlib.EnsureDependencies(ctx, true); err != nil {
 		log.Fatalf("dependency setup failed: %v", err)
 	}
@@ -200,26 +270,6 @@ func main() {
 }
 ```
 
-Note: auto-install still depends on OS package-manager permissions (for example `sudo` on Linux or admin shell on Windows).
-
-
-
-
-## Terminal UX
-
-Animated terminal UI is enabled for interactive commands.
-
-- Disable animations: `--no-ui`
-- Disable colors: `--no-color` or `NO_COLOR=1`
-
-Examples:
-
-```sh
-flux doctor
-flux --no-ui doctor
-NO_COLOR=1 flux doctor
-```
-
 ## Docker
 
 ```sh
@@ -227,6 +277,10 @@ docker build -t flux .
 docker run --rm flux convert -i input.json -o output.yaml
 ```
 
-## More Details
+## Requirements and Compatibility
 
-See [REQUIREMENTS.md](REQUIREMENTS.md) for complete dependency, platform, and verification guidance.
+See [REQUIREMENTS.md](REQUIREMENTS.md) for full dependency matrix and platform-specific verification details.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).

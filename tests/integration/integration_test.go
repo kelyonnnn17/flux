@@ -190,15 +190,15 @@ def hello():
 
 	// Validate structure preservation
 	checks := map[string]string{
-		"h1 tag":       "<h1",
-		"h2 tag":       "<h2",
-		"h3 tag":       "<h3",
-		"paragraph":    "<p>",
-		"bold":         "<strong>",
-		"italic":       "<em>",
-		"code block":   "<code>",
-		"list":         "<li>",
-		"table":        "<table>",
+		"h1 tag":     "<h1",
+		"h2 tag":     "<h2",
+		"h3 tag":     "<h3",
+		"paragraph":  "<p>",
+		"bold":       "<strong>",
+		"italic":     "<em>",
+		"code block": "<code>",
+		"list":       "<li>",
+		"table":      "<table>",
 	}
 
 	for checkName, pattern := range checks {
@@ -557,4 +557,3 @@ func TestIntegration_Audio_MultiCodec(t *testing.T) {
 		prevFile = outFile
 	}
 }
-

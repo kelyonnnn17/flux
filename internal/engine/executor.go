@@ -52,6 +52,10 @@ func executeStep(factory *EngineFactory, step RouteStep, src, dst string, args [
 		return data.Convert(src, dst, step.FromFormat, step.ToFormat)
 	case "pdftotext":
 		return extractPDFText(factory.runner, src, dst)
+	case "pdf2docx":
+		return convertPDFToDOCX(factory.runner, src, dst)
+	case "docx2pdf":
+		return convertDOCXToPDF(factory.runner, src, dst)
 	default:
 		eng, err := factory.GetEngine(step.Engine)
 		if err != nil {

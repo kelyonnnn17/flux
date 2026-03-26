@@ -8,6 +8,18 @@ cd "$(dirname "$0")/.."
 INSTALL_ENGINES=false
 [[ "${1:-}" == "--yes" || "${1:-}" == "-y" ]] && INSTALL_ENGINES=true
 PATH_UPDATED=false
+FLUX_PYTHON_UPDATED=false
+
+have_imagemagick() {
+    command -v magick &>/dev/null || command -v convert &>/dev/null
+}
+
+have_all_engines() {
+    command -v ffmpeg &>/dev/null && \
+        have_imagemagick && \
+        command -v pandoc &>/dev/null && \
+        command -v pdftotext &>/dev/null
+}
 
 echo "==> Flux setup"
 echo
@@ -54,6 +66,53 @@ ensure_path_contains() {
     fi
 
     export PATH="$dir:$PATH"
+}
+
+ensure_flux_python() {
+    local profile
+    local flux_python
+    profile="$(detect_shell_profile)"
+    flux_python="$(pwd)/.venv/bin/python"
+
+    if [[ ! -f "$profile" ]]; then
+        touch "$profile"
+    fi
+
+    if grep -Fq "# flux-python" "$profile"; then
+        if ! grep -Fq "export FLUX_PYTHON=\"$flux_python\"" "$profile"; then
+            # Replace previous FLUX_PYTHON line if marker exists.
+            awk -v new_line="export FLUX_PYTHON=\"$flux_python\"" '
+                BEGIN { marker = 0 }
+                {
+                    if ($0 == "# flux-python") {
+                        print $0
+                        getline
+                        print new_line
+                        marker = 1
+                        next
+                    }
+                    print $0
+                }
+                END {
+                    if (marker == 0) {
+                        print "# flux-python"
+                        print new_line
+                    }
+                }
+            ' "$profile" > "$profile.tmp"
+            mv "$profile.tmp" "$profile"
+            FLUX_PYTHON_UPDATED=true
+        fi
+    else
+        {
+            echo
+            echo "# flux-python"
+            echo "export FLUX_PYTHON=\"$flux_python\""
+        } >>"$profile"
+        FLUX_PYTHON_UPDATED=true
+    fi
+
+    export FLUX_PYTHON="$flux_python"
 }
 
 install_flux() {
@@ -109,11 +168,27 @@ echo "OK Go: $(go version)"
 
 # Detect OS and install engines
 install_engines() {
+    if have_all_engines; then
+        echo "OK Runtime engines already installed (ffmpeg, imagemagick, pandoc, pdftotext)"
+        return
+    fi
+
     case "$(uname -s)" in
         Darwin)
             if command -v brew &>/dev/null; then
                 echo "==> Installing engines (macOS Homebrew)..."
-                brew install ffmpeg imagemagick pandoc poppler 2>/dev/null || true
+                local packages=()
+                command -v ffmpeg &>/dev/null || packages+=("ffmpeg")
+                have_imagemagick || packages+=("imagemagick")
+                command -v pandoc &>/dev/null || packages+=("pandoc")
+                command -v pdftotext &>/dev/null || packages+=("poppler")
+
+                if [[ ${#packages[@]} -eq 0 ]]; then
+                    echo "OK Runtime engines already installed"
+                    return
+                fi
+
+                HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install "${packages[@]}" || true
             else
                 echo "  Install Homebrew and run: brew install ffmpeg imagemagick pandoc poppler"
             fi
@@ -149,6 +224,10 @@ else
 fi
 
 # Build
+echo "==> Preparing Python runtime (.venv + modules)..."
+bash ./scripts/bootstrap-python.sh
+ensure_flux_python
+
 echo "==> Building flux..."
 make build
 echo "OK Built ./bin/flux"
@@ -162,10 +241,17 @@ echo
 install_flux
 
 echo "==> Verifying installed command"
-flux --help >/dev/null
-echo "OK flux command is available"
+if command -v flux >/dev/null 2>&1; then
+    echo "OK flux command is available"
+else
+    echo "X flux command is not on PATH yet. Open a new terminal and retry."
+    exit 1
+fi
 if [[ "$PATH_UPDATED" == true ]]; then
     echo "OK PATH was updated for future shells. Open a new terminal to pick up that change."
+fi
+if [[ "$FLUX_PYTHON_UPDATED" == true ]]; then
+    echo "OK FLUX_PYTHON was set in your shell profile for future shells."
 fi
 echo
 

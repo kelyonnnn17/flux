@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().String("engine", "auto", "Conversion engine to use: ffmpeg|imagemagick|pandoc|data|auto")
+	rootCmd.PersistentFlags().String("engine", "auto", "Conversion engine to use: pdf2docx|docx2pdf|ffmpeg|imagemagick|pandoc|data|auto")
 	rootCmd.PersistentFlags().BoolVar(&noColorFlag, "no-color", false, "Disable ANSI color output")
 	rootCmd.PersistentFlags().BoolVar(&noUIFlag, "no-ui", false, "Disable animated terminal UI")
 }

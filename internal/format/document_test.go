@@ -1,6 +1,8 @@
 package format
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -32,6 +34,20 @@ func TestDocumentFormatter_PandocArgs(t *testing.T) {
 			style:    "technical",
 			output:   "output.html",
 			contains: []string{"--standalone", "--highlight-style=tango"},
+			notEmpty: true,
+		},
+		{
+			name:     "developer pdf",
+			style:    "developer",
+			output:   "output.pdf",
+			contains: []string{"--standalone", "--highlight-style=zenburn", "--variable=geometry:margin=1in", "--variable=linestretch:1.2"},
+			notEmpty: true,
+		},
+		{
+			name:     "developer docx",
+			style:    "developer",
+			output:   "output.docx",
+			contains: []string{"--standalone", "--highlight-style=zenburn", "--metadata=title:Developer Document"},
 			notEmpty: true,
 		},
 		{
@@ -79,6 +95,15 @@ func TestDocumentFormatter_PandocArgs(t *testing.T) {
 	}
 }
 
+func TestDocumentFormatter_PandocArgsWithContext_DeveloperMarkdownWrap(t *testing.T) {
+	f := NewDocumentFormatter("developer")
+	args := f.PandocArgsWithContext("guide.md", "guide.pdf", "")
+	argsStr := strings.Join(args, " ")
+	if !strings.Contains(argsStr, "--wrap=preserve") {
+		t.Fatalf("expected developer markdown conversion to preserve wrapping, got %v", args)
+	}
+}
+
 func TestIsDocumentFormat(t *testing.T) {
 	tests := []struct {
 		ext  string
@@ -103,4 +128,48 @@ func TestIsDocumentFormat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDocumentFormatter_PandocArgsWithContext_DOCXReference(t *testing.T) {
+	t.Run("auto reference from input docx", func(t *testing.T) {
+		dir := t.TempDir()
+		in := filepath.Join(dir, "in.docx")
+		if err := os.WriteFile(in, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		f := NewDocumentFormatter("professional")
+		args := f.PandocArgsWithContext(in, filepath.Join(dir, "out.docx"), "")
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--reference-doc="+in) {
+			t.Fatalf("expected auto reference-doc from input docx, got %v", args)
+		}
+	})
+
+	t.Run("explicit reference doc", func(t *testing.T) {
+		dir := t.TempDir()
+		reference := filepath.Join(dir, "reference.docx")
+		if err := os.WriteFile(reference, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		f := NewDocumentFormatter("professional")
+		args := f.PandocArgsWithContext("", filepath.Join(dir, "out.docx"), reference)
+		joined := strings.Join(args, " ")
+		if !strings.Contains(joined, "--reference-doc="+reference) {
+			t.Fatalf("expected explicit reference-doc, got %v", args)
+		}
+	})
+
+	t.Run("ignore missing reference doc", func(t *testing.T) {
+		dir := t.TempDir()
+		missing := filepath.Join(dir, "missing.docx")
+
+		f := NewDocumentFormatter("professional")
+		args := f.PandocArgsWithContext("", filepath.Join(dir, "out.docx"), missing)
+		joined := strings.Join(args, " ")
+		if strings.Contains(joined, "--reference-doc=") {
+			t.Fatalf("did not expect reference-doc for missing file, got %v", args)
+		}
+	})
 }

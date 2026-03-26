@@ -1,4 +1,4 @@
-.PHONY: build setup install install-global uninstall reinstall test test-integration coverage
+.PHONY: bootstrap bootstrap-check build setup install install-global uninstall reinstall dev-ready reinstall-ready test test-integration coverage
 
 BINARY := flux
 BUILD_OUT := bin/$(BINARY)
@@ -15,16 +15,22 @@ endif
 BINDIR ?= $(PREFIX)/bin
 INSTALL_PATH ?= $(BINDIR)/$(BINARY)
 
+bootstrap:
+	@bash ./scripts/bootstrap-python.sh
+
+bootstrap-check:
+	@bash ./scripts/bootstrap-python.sh --check
+
 build:
 	go build -o $(BUILD_OUT) main.go
 
 setup:
-	@./scripts/setup.sh
+	@./scripts/setup.sh --yes
 
 install-global:
 	@./scripts/install-go.sh
 
-install: build
+install: bootstrap-check build
 	mkdir -p "$(BINDIR)"
 	install -m 0755 "$(BUILD_OUT)" "$(INSTALL_PATH)"
 	@echo "OK Installed $(INSTALL_PATH)"
@@ -34,6 +40,12 @@ uninstall:
 	@echo "OK Removed $(INSTALL_PATH)"
 
 reinstall: uninstall install
+
+dev-ready: bootstrap build
+	@echo "OK Development environment is ready"
+
+reinstall-ready: bootstrap reinstall
+	@echo "OK Reinstalled with Python runtime ready"
 
 test:
 	go test -v ./...

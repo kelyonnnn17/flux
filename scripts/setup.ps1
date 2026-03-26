@@ -44,6 +44,16 @@ if ($Yes) {
     }
 }
 
+Write-Host "==> Preparing Python runtime (.venv + modules)"
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-python.ps1
+
+$venvPython = Resolve-Path .\.venv\Scripts\python.exe -ErrorAction SilentlyContinue
+if ($venvPython) {
+    [Environment]::SetEnvironmentVariable("FLUX_PYTHON", $venvPython.Path, "User")
+    $env:FLUX_PYTHON = $venvPython.Path
+    Write-Host "OK Set FLUX_PYTHON for current and future terminals"
+}
+
 Write-Host "==> Building flux"
 go build -o .\bin\flux.exe main.go
 Write-Host "OK Built .\\bin\\flux.exe"

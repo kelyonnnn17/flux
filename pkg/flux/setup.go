@@ -33,6 +33,8 @@ func CheckDependencies() SetupReport {
 		probeBinary("ffmpeg", "ffmpeg"),
 		probeImageMagick(),
 		probeBinary("pandoc", "pandoc"),
+		probePythonModule("pdf2docx"),
+		probePythonModule("docx2pdf"),
 	}
 	return SetupReport{OS: runtime.GOOS, Dependencies: deps}
 }
@@ -97,6 +99,42 @@ func probeImageMagick() Dependency {
 	return dep
 }
 
+func probePythonModule(module string) Dependency {
+	dep := Dependency{Name: module, Binary: "python module"}
+	pythonBin, err := findPythonBinary()
+	if err != nil {
+		return dep
+	}
+
+	check := exec.Command(pythonBin, "-c", "import "+module)
+	if err := check.Run(); err != nil {
+		return dep
+	}
+
+	dep.Installed = true
+	dep.Path = pythonBin + " (module)"
+	dep.Version = detectPythonModuleVersion(pythonBin, module)
+	return dep
+}
+
+func findPythonBinary() (string, error) {
+	if p, err := exec.LookPath("python3"); err == nil {
+		return p, nil
+	}
+	if p, err := exec.LookPath("python"); err == nil {
+		return p, nil
+	}
+	return "", errors.New("python3/python not found")
+}
+
+func detectPythonModuleVersion(pythonBin, module string) string {
+	cmd := exec.Command(pythonBin, "-c", "import "+module+" as m; print(getattr(m, '__version__', ''))")
+	if out, err := cmd.Output(); err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return ""
+}
+
 func detectVersion(bin string) string {
 	cmd := exec.Command(bin, "-version")
 	if out, err := cmd.Output(); err == nil {
@@ -126,22 +164,51 @@ func missingNames(deps []Dependency) []string {
 }
 
 func installCommandsForOS(missing []string) ([]string, error) {
-	pkgNames := map[string]string{
+	systemPkgNames := map[string]string{
 		"ffmpeg":      "ffmpeg",
 		"imagemagick": "imagemagick",
 		"pandoc":      "pandoc",
 	}
+	pythonModuleNames := map[string]string{
+		"pdf2docx": "pdf2docx",
+		"docx2pdf": "docx2pdf",
+	}
 
-	packages := []string{}
+	systemPackages := []string{}
+	pythonModules := []string{}
 	for _, name := range missing {
-		if p, ok := pkgNames[name]; ok {
-			packages = append(packages, p)
+		if p, ok := systemPkgNames[name]; ok {
+			systemPackages = append(systemPackages, p)
+		}
+		if p, ok := pythonModuleNames[name]; ok {
+			pythonModules = append(pythonModules, p)
 		}
 	}
-	if len(packages) == 0 {
+	if len(systemPackages) == 0 && len(pythonModules) == 0 {
 		return nil, errors.New("no installable packages found")
 	}
 
+	commands := []string{}
+	if len(systemPackages) > 0 {
+		systemCommands, err := systemInstallCommandsForOS(systemPackages)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, systemCommands...)
+	}
+
+	if len(pythonModules) > 0 {
+		pythonBin, err := findPythonBinary()
+		if err != nil {
+			return nil, fmt.Errorf("python required to install modules: %w", err)
+		}
+		commands = append(commands, pythonBin+" -m pip install --upgrade "+strings.Join(pythonModules, " "))
+	}
+
+	return commands, nil
+}
+
+func systemInstallCommandsForOS(packages []string) ([]string, error) {
 	switch runtime.GOOS {
 	case "darwin":
 		if _, err := exec.LookPath("brew"); err != nil {
