@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kelyonnnn17/flux/internal/engine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,10 +32,15 @@ func TestConvert_ExplicitEngineValidation(t *testing.T) {
 	})
 
 	t.Run("auto pdf to docx requires python adapter", func(t *testing.T) {
-		err := Convert("input.pdf", "output.docx", ConvertOptions{Engine: "auto"})
-		if err != nil {
-			assert.Contains(t, err.Error(), "pdf2docx")
+		ok, checkErr := engine.CanEngineConvert("input.pdf", "output.docx", "pdf2docx")
+		require.NoError(t, checkErr)
+		if ok {
+			t.Skip("python pdf2docx adapter available in environment; missing-adapter path not applicable")
 		}
+
+		err := Convert("input.pdf", "output.docx", ConvertOptions{Engine: "auto"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "pdf2docx")
 	})
 }
 
