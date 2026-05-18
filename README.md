@@ -64,7 +64,13 @@ Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\scripts\install-go.ps1
 ```
 
-This installs `github.com/kelyonnnn17/flux` via `go install` and updates user PATH if required.
+This installs `github.com/kelyonn/flux` via `go install` and updates user PATH if required.
+
+Manual global install command:
+
+```sh
+go install github.com/kelyonn/flux@latest
+```
 
 ## Core Commands
 
@@ -238,7 +244,7 @@ NO_COLOR=1 flux doctor
 Install:
 
 ```sh
-go get github.com/kelyonnnn17/flux/pkg/flux
+go get github.com/kelyonn/flux/pkg/flux@latest
 ```
 
 Example:
@@ -250,7 +256,7 @@ import (
 	"context"
 	"log"
 
-	fluxlib "github.com/kelyonnnn17/flux/pkg/flux"
+	fluxlib "github.com/kelyonn/flux/pkg/flux"
 )
 
 func main() {
