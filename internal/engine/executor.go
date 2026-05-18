@@ -40,6 +40,9 @@ func ExecuteRoute(route ConversionRoute, src, dst string, factory *EngineFactory
 		if err := executeStep(factory, step, current, next, argBuilder(step, isFinal)); err != nil {
 			return fmt.Errorf("step %d/%d (%s %s->%s) failed: %w", i+1, len(route.Steps), step.Engine, step.FromFormat, step.ToFormat, err)
 		}
+		if err := validateOutputFile(next, step.ToFormat); err != nil {
+			return fmt.Errorf("step %d/%d (%s %s->%s) produced invalid output: %w", i+1, len(route.Steps), step.Engine, step.FromFormat, step.ToFormat, err)
+		}
 		current = next
 	}
 

@@ -41,6 +41,12 @@ func Info(msg string, args ...interface{}) {
 	c.Printf(msg+"\n", args...)
 }
 
+// Warn prints a warning message (yellow, ! prefix).
+func Warn(msg string, args ...interface{}) {
+	c := color.New(color.FgYellow)
+	c.Printf("! "+msg+"\n", args...)
+}
+
 // Primary prints primary text (muted cyan).
 func Primary(msg string, args ...interface{}) {
 	c := color.New(color.FgCyan)

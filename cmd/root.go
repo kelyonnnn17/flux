@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/kelyonnnn17/flux/internal/config"
+	"github.com/kelyonnnn17/flux/internal/engine"
 	"github.com/kelyonnnn17/flux/internal/format"
 	"github.com/kelyonnnn17/flux/internal/ui"
 	"github.com/spf13/cobra"
@@ -13,6 +15,7 @@ import (
 
 var noColorFlag bool
 var noUIFlag bool
+var timeoutFlag time.Duration
 
 var rootCmd = &cobra.Command{
 	Use:   "flux",
@@ -24,6 +27,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		format.Init(noColorFlag)
 		ui.Configure(!noUIFlag, noColorFlag)
+		engine.SetEngineTimeout(timeoutFlag)
 	},
 }
 
@@ -31,6 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().String("engine", "auto", "Conversion engine to use: pdf2docx|docx2pdf|ffmpeg|imagemagick|pandoc|data|auto")
 	rootCmd.PersistentFlags().BoolVar(&noColorFlag, "no-color", false, "Disable ANSI color output")
 	rootCmd.PersistentFlags().BoolVar(&noUIFlag, "no-ui", false, "Disable animated terminal UI")
+	rootCmd.PersistentFlags().DurationVar(&timeoutFlag, "timeout", engine.DefaultEngineTimeout, "Maximum time allowed per conversion (e.g. 30s, 5m, 1h)")
 }
 
 func Execute() {

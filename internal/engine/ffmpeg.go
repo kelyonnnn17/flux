@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"time"
 )
 
 type FFmpegAdapter struct {
@@ -15,7 +13,7 @@ func (a *FFmpegAdapter) Convert(src, dst string, args []string) error {
 	cmdArgs := []string{"-i", src}
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, dst)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := engineContext()
 	defer cancel()
 	cmd := a.Runner.CommandContext(ctx, "ffmpeg", cmdArgs...)
 	if out, err := cmd.CombinedOutput(); err != nil {
