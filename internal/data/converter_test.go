@@ -3,6 +3,7 @@ package data
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -150,6 +151,32 @@ func TestConvert_TSVToJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(out), "a")
 	assert.Contains(t, string(out), "b")
+}
+
+func TestConvert_JSONToCSV_DeterministicHeaders(t *testing.T) {
+	// Headers must be in the same (sorted) order on every run.
+	dir := t.TempDir()
+	src := filepath.Join(dir, "in.json")
+	jsonData := `[{"zebra":"z","apple":"a","mango":"m"},{"zebra":"z2","apple":"a2","mango":"m2"}]`
+	require.NoError(t, os.WriteFile(src, []byte(jsonData), 0644))
+
+	var first string
+	for i := 0; i < 20; i++ {
+		dst := filepath.Join(dir, "out.csv")
+		require.NoError(t, Convert(src, dst, FormatJSON, FormatCSV))
+		out, err := os.ReadFile(dst)
+		require.NoError(t, err)
+		got := string(out)
+		if i == 0 {
+			first = got
+		} else if got != first {
+			t.Fatalf("run %d produced different output:\nfirst:\n%s\ngot:\n%s", i+1, first, got)
+		}
+	}
+	// Also assert the header order is alphabetical.
+	lines := strings.SplitN(first, "\n", 2)
+	require.NotEmpty(t, lines)
+	assert.Equal(t, "apple,mango,zebra", lines[0])
 }
 
 func TestConvert_TOMLToJSON(t *testing.T) {

@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"time"
 )
 
 type PandocAdapter struct {
@@ -15,7 +13,7 @@ func (a *PandocAdapter) Convert(src, dst string, args []string) error {
 	cmdArgs := []string{"-o", dst, src}
 	cmdArgs = append(cmdArgs, args...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := engineContext()
 	defer cancel()
 	cmd := a.Runner.CommandContext(ctx, "pandoc", cmdArgs...)
 	if out, err := cmd.CombinedOutput(); err != nil {

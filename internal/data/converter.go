@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -223,25 +224,11 @@ func headersFromRows(rows []map[string]interface{}) []string {
 			seen[k] = true
 		}
 	}
-	var headers []string
-	if len(rows) > 0 {
-		for k := range rows[0] {
-			headers = append(headers, k)
-		}
-		for k := range seen {
-			if !contains(headers, k) {
-				headers = append(headers, k)
-			}
-		}
+	headers := make([]string, 0, len(seen))
+	for k := range seen {
+		headers = append(headers, k)
 	}
+	sort.Strings(headers)
 	return headers
 }
 
-func contains(s []string, x string) bool {
-	for _, v := range s {
-		if v == x {
-			return true
-		}
-	}
-	return false
-}

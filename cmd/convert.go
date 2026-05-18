@@ -18,14 +18,15 @@ import (
 )
 
 var (
-	inputPaths       []string
-	outputPath       string
-	fromFlag         string
-	toFlag           string
-	forceFlag        bool
-	quietFlag        bool
-	formatStyleFlag  string
-	referenceDocFlag string
+	inputPaths          []string
+	outputPath          string
+	fromFlag            string
+	toFlag              string
+	forceFlag           bool
+	quietFlag           bool
+	continueOnErrorFlag bool
+	formatStyleFlag     string
+	referenceDocFlag    string
 )
 
 var convertCmd = &cobra.Command{
@@ -43,6 +44,7 @@ func init() {
 	convertCmd.Flags().StringVar(&toFlag, "to", "", "Output format (csv|json|yaml|toml); required for pipe")
 	convertCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing files without prompting")
 	convertCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress output; exit code only")
+	convertCmd.Flags().BoolVar(&continueOnErrorFlag, "continue-on-error", false, "In batch mode, continue converting remaining files after a failure")
 	convertCmd.Flags().StringVar(&formatStyleFlag, "format-style", "professional", "Apply document formatting preset (professional|technical|developer|none); does not auto-generate TOC/section numbering")
 	convertCmd.Flags().StringVar(&referenceDocFlag, "reference-doc", "", "Path to DOCX reference template for DOCX output (preserves styles)")
 }
@@ -111,6 +113,8 @@ func expandGlobs(paths []string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("glob %s: %w", p, err)
 		}
+		matched := len(matches)
+		accepted := 0
 		for _, m := range matches {
 			info, err := os.Stat(m)
 			if err != nil {
@@ -118,7 +122,11 @@ func expandGlobs(paths []string) ([]string, error) {
 			}
 			if info.Mode().IsRegular() {
 				out = append(out, m)
+				accepted++
 			}
+		}
+		if matched > 0 && accepted < matched && !quietFlag {
+			format.Warn("%s: %d of %d glob matches skipped (not regular files or vanished)", p, matched-accepted, matched)
 		}
 	}
 	return out, nil
@@ -126,6 +134,7 @@ func expandGlobs(paths []string) ([]string, error) {
 
 func runBatchMode(inputs []string, output string, engineFlag string, formatStyle string, referenceDoc string) error {
 	outputIsExt := isOutputExtension(output, len(inputs))
+	var failed []string
 	for _, in := range inputs {
 		out := resolveOutputPath(in, output, outputIsExt, len(inputs))
 		if out == "" {
@@ -139,11 +148,20 @@ func runBatchMode(inputs []string, output string, engineFlag string, formatStyle
 			}
 		}
 		if err := convertOne(in, out, engineFlag, formatStyle, referenceDoc); err != nil {
+			if continueOnErrorFlag {
+				format.Error("%s: %v", in, err)
+				failed = append(failed, in)
+				continue
+			}
 			return err
 		}
 		if !quietFlag && !useConvertUI(out) {
 			format.Success("Converted %s -> %s", in, out)
 		}
+	}
+	if len(failed) > 0 {
+		format.Error("%d/%d files failed: %s", len(failed), len(inputs), strings.Join(failed, ", "))
+		return fmt.Errorf("%d file(s) failed to convert", len(failed))
 	}
 	return nil
 }
