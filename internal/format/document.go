@@ -33,6 +33,11 @@ func (f *DocumentFormatter) PandocArgsWithContext(inputPath, outputPath, referen
 
 	args := []string{}
 
+	if ext == "pdf" {
+		// xelatex handles Unicode (em dashes, arrows, symbols) that pdflatex rejects.
+		args = append(args, "--pdf-engine=xelatex")
+	}
+
 	if f.Style != "none" {
 		// Keep defaults non-intrusive: preserve source structure and avoid synthetic sections/TOC.
 		args = append(args, "--standalone")
