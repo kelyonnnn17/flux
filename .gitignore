@@ -54,3 +54,11 @@ temp/
 *.kdbx
 secrets*.json
 credentials*.json
+
+# IDE / AI agent working directories
+.claude/
+
+# Product docs (not tracked in source)
+PRD.md
+PRD.docx
+PRD.pdf
